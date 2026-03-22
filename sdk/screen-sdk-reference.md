@@ -160,6 +160,19 @@ const { data, refetch } = useRecords('customer_form');
 <button onClick={refetch}>更新</button>
 ```
 
+### ⚠️ Nodes API経由の更新とanswerDataの同期
+
+`useRecords` / `useRecord` は `answerData` を読みます。Nodes API（`PUT /api/answers/{answerId}/nodes/{rowId}`）で
+サブテーブル行を更新しても、**answerData は自動更新されません**。
+
+Nodes API経由で更新した場合は、`POST /api/v1/forms/{formId}/answers/rebuild-index` を実行してからデータを再取得してください。
+
+```tsx
+// Nodes API更新後にanswerDataを同期
+await fetch(`/api/v1/forms/${formId}/answers/rebuild-index`, { method: 'POST' });
+refetch(); // answerDataが更新された後に再取得
+```
+
 ### 使用例
 
 #### 例1: シンプルな一覧表示

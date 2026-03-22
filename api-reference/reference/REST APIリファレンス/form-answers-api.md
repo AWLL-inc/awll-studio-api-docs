@@ -22,6 +22,22 @@
 
 > **注意**: 一括操作は `POST /bulk`（一括作成）と `PUT /bulk`（一括更新）で分離されています。
 
+### 大量ネストデータの更新に関する注意
+
+3階層以上のARRAYネスト × 100件以上のサブレコードを含むレコードの **PUT更新で504 Gateway Timeoutが発生する場合がある**。
+
+#### 回避策
+
+1. **DELETE → POST で再作成**: answerIdは変わるが確実にanswerDataに反映される
+2. **Nodes API で個別ノードを更新**: 特定のサブレコードだけ更新可能。ただしanswerDataには反映されないため、カスタム画面との整合性に注意
+3. **UI手動更新**: AWLL Studio画面からの更新は確実に反映される
+
+#### ARRAY データの更新ルール
+
+- POST（新規作成）: `answerData` にARRAYデータを含めて送信すればanswerDataとノード両方に反映される
+- PUT（全体更新）: 同上だが、データ量が大きい場合504のリスクあり
+- Nodes API PUT: ノードツリーのみ更新。**answerData（検索インデックス）には反映されない**。answerDataとの同期が必要な場合は、別途 PUT `/api/v1/forms/{formId}/answers/{answerId}` を実行するか、POST `/api/v1/forms/{formId}/answers/rebuild-index` でインデックスを再構築する
+
 ---
 
 ## GET /api/v1/forms/{formId}/answers
@@ -111,6 +127,13 @@
 
 レコードを作成します。
 
+> **⚠️ 504 Gateway Timeout 時の重複作成リスク**
+>
+> 大量のARRAYデータを含むレコードの作成で504が返っても、
+> サーバー側では処理が完了している場合があります。
+> 504受信後は `GET /api/v1/forms/{formId}/answers` で存在確認してから
+> 再試行してください。確認せず再送すると重複レコードが作成されます。
+
 ### リクエスト
 
 ```json
@@ -136,6 +159,20 @@
 
 レコードを全体更新（完全置換）します。
 
+> **⚠️ 大量ネストデータでの504リスク**
+>
+> ARRAYフィールド（サブテーブル）を多く含むレコードの全体PUTは、内部でノードツリーの
+> 再構築が発生するため、タイムアウト（30秒）を超過して **504 Gateway Timeout** になる場合があります。
+>
+> **504が発生する目安:**
+> - 3階層以上のネスト（例: 年度 → 案件ARRAY → 月次売上ARRAY）
+> - サブテーブル合計100行以上
+>
+> **推奨される代替手段:**
+> - 特定フィールドのみ更新 → `PATCH` で差分更新（下記参照）
+> - サブテーブル行の個別更新 → `PUT /api/answers/{answerId}/nodes/{rowId}`（[Nodes API](./nodes-api.md) 参照）
+> - サブテーブル行の追加 → `POST /api/answers/{answerId}/nodes`
+
 ### リクエスト
 
 ```json
@@ -147,11 +184,24 @@
 }
 ```
 
+### エラー
+
+| Status | 意味 |
+|--------|------|
+| 400 | バリデーションエラー |
+| 404 | レコードが存在しない |
+| 504 | Gateway Timeout（ネストデータが大きすぎる場合） |
+
 ---
 
-## PATCH /api/v1/forms/{formId}/answers/{answerId}
+## PATCH /api/v1/forms/{formId}/answers/{answerId} ✅推奨
 
 レコードを部分更新します（楽観ロック付き）。
+
+> **✅ 大量ネストデータの更新にはこのAPIを推奨**
+>
+> PUT（全体置換）と異なり、変更対象のフィールドのみを操作するため、
+> ARRAYフィールドが多いレコードでも504 Gateway Timeoutが発生しません。
 
 ### ヘッダー
 

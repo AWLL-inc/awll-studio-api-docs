@@ -25,6 +25,38 @@
 - 親ノードが持つ **ARRAY型フィールドのfieldCode** を指定します
 - 例: 親ノードに `tasks` (ARRAY) フィールドがある場合、`fieldCode: "tasks"`
 
+### 4. Nodes API で更新しても answerData には反映されない
+
+- Nodes API（PUT `/api/answers/{answerId}/nodes/{rowId}`）でノードを更新しても、**answerData（検索インデックス）には自動反映されない**
+- カスタム画面（Screen SDK の `useRecords` / `useRecord`）は answerData を読むため、**Nodes API だけでは画面に反映されない**
+- answerData との整合性を保つには、PUT `/api/v1/forms/{formId}/answers/{answerId}` でanswerData全体を更新する必要がある
+
+### 5. PUT /nodes/{rowId} は全フィールドを送ること
+
+- Nodes API の PUT は**全フィールド置換**。送らなかったフィールドは消える
+- 例: `name` と `category` を持つノードで `monthly_sales` だけ送ると、`name` と `category` が消失する
+
+```json
+// NG: monthly_salesだけ送ると、nameとcategoryが消える
+{ "data": { "monthly_sales": [...] } }
+
+// OK: 全フィールドを含める
+{ "data": { "name": "JFS", "category": "awll_studio", "monthly_sales": [...] } }
+```
+
+### 6. 大量ネストデータの更新で 504 Gateway Timeout が発生する場合がある
+
+- 3階層以上のネスト × 100件以上のサブレコードを含むレコードのPUT更新で504が発生する
+- POST（新規作成）は同じデータ量でも成功する
+- 回避策: DELETE → POST で再作成、またはUI手動更新
+
+| 操作 | 方法 | answerData反映 | 504リスク |
+|------|------|---------------|----------|
+| 新規作成 | POST /answers | ○ | 低 |
+| 全体更新 | PUT /answers/{id} | ○ | **高**（ネスト多い場合） |
+| 個別ノード更新 | PUT /nodes/{rowId} | × | 中（504でも成功する場合あり） |
+| 削除→再作成 | DELETE + POST | ○ | 低 |
+
 ---
 
 ## エンドポイント一覧
@@ -206,28 +238,51 @@ curl -s -X POST \
 
 子ノード作成後、関連する集計フィールドがあれば自動的に再計算されます。
 
+> **⚠️ answerData非同期**: 作成後、`FormAnswer.answerData` は自動更新されません。
+> 検索やカスタム画面に反映するには `POST /api/v1/forms/{formId}/answers/rebuild-index` が必要です。
+
 ---
 
-## PUT /api/answers/{answerId}/nodes/{rowId}
+## PUT /api/answers/{answerId}/nodes/{rowId} — 全フィールド置換
 
-ノードデータを更新します。親ノード変更（移動）もサポート。
+ノード（サブテーブル行）のデータを更新します。親ノード変更（移動）もサポート。
+
+> **⚠️ 全フィールド置換**: `data` に含まれないフィールドは消失します。
+> 変更するフィールドだけでなく、既存フィールドも全て含めて送信してください。
+>
+> **⚠️ answerData非同期**: ノード更新後、`FormAnswer.answerData` は自動更新されません。
+> カスタム画面に反映するには `POST /api/v1/forms/{formId}/answers/rebuild-index` が必要です。
 
 ### リクエスト
 
 ```json
+// ✅ 正しい（全フィールド送信）
 {
   "data": {
     "task_name": "更新後のタスク名",
+    "assignee": "鈴木一郎",
     "status": "完了"
-  },
-  "newParentRowId": "01KKD5EF..."
+  }
+}
+
+// ❌ 誤り（statusだけ送ると他フィールドが消失）
+{
+  "data": {
+    "status": "完了"
+  }
 }
 ```
 
 | フィールド | 型 | 必須 | 説明 |
 |-----------|-----|------|------|
-| data | object | Yes | 更新データ |
+| data | object | Yes | **全フィールド**を含む更新データ（部分更新不可） |
 | newParentRowId | string | No | 移動先の親ノードrowId（指定時にノード移動） |
+
+### 更新が失敗する場合の代替手段
+
+1. `DELETE /api/answers/{answerId}/nodes/{rowId}` で既存ノードを削除
+2. `POST /api/answers/{answerId}/nodes` で変更後のデータで再作成
+3. `POST /api/v1/forms/{formId}/answers/rebuild-index` でインデックス再構築
 
 ### レスポンス (200)
 
@@ -239,6 +294,7 @@ curl -s -X POST \
 |--------|------|
 | 400 | 循環参照が検出された（自分自身の子孫への移動等） |
 | 404 | 指定rowIdのノード、または移動先の親ノードが存在しない |
+| 504 | Gateway Timeout（子ノードが大量の場合。個別ノード更新に分割を推奨） |
 
 ---
 
