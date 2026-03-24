@@ -9,7 +9,9 @@
 
 - **ON_CREATE**: データベース回答が新規作成されたとき
 - **ON_UPDATE**: データベース回答が更新されたとき
-- **ON_BUTTON_CLICK**: カスタムボタンがクリックされたとき（#1137）
+- **ON_CHANGE**: データベース回答のフィールドが変更されたとき（リアルタイム）
+- **ON_BUTTON_CLICK**: カスタムボタンがクリックされたとき（Issue #1137）
+- **SCHEDULED**: スケジュール実行（バッチ処理）（Epic #1299）
 
 ## グローバル変数
 
@@ -60,11 +62,24 @@ record.last_modified_by = userId;
 
 ```javascript
 // イベントタイプ
-console.log('イベント:', context.event); // "ON_CREATE" | "ON_UPDATE" | "ON_BUTTON_CLICK"
+console.log('イベント:', context.event); // "ON_CREATE" | "ON_UPDATE" | "ON_CHANGE" | "ON_BUTTON_CLICK" | "SCHEDULED"
 
 // データベースID
 console.log('Form ID:', context.formId);
 ```
+
+### `context.field` (string, ON_CHANGEのみ)
+変更されたフィールド名
+
+```javascript
+if (context.event === 'ON_CHANGE') {
+  console.log('変更フィールド:', context.field);
+  console.log('変更後の値:', context.value);
+}
+```
+
+### `context.value` (any, ON_CHANGEのみ)
+変更後の値
 
 ### `context.actionId` (string, ON_BUTTON_CLICKのみ)
 クリックされたボタンのアクションID

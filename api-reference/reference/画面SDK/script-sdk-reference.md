@@ -1,15 +1,17 @@
 # Script SDK API Reference
 
 **対象**: AWLL Studioスクリプト開発者
-**最終更新**: 2026-02-04
+**最終更新**: 2026-03-24
 
 ## スクリプト実行環境
 
 スクリプトは以下のタイミングで自動実行されます：
 
-- **ON_CREATE**: フォーム回答が新規作成されたとき
-- **ON_UPDATE**: フォーム回答が更新されたとき
-- **ON_CHANGE**: フォーム回答のフィールドが変更されたとき（リアルタイム）
+- **ON_CREATE**: データベース回答が新規作成されたとき
+- **ON_UPDATE**: データベース回答が更新されたとき
+- **ON_CHANGE**: データベース回答のフィールドが変更されたとき（リアルタイム）
+- **ON_BUTTON_CLICK**: カスタムボタンがクリックされたとき（Issue #1137）
+- **SCHEDULED**: スケジュール実行（バッチ処理）（Epic #1299）
 
 ## グローバル変数
 
@@ -54,6 +56,71 @@ console.log('実行ユーザー:', userId);
 // ユーザーIDを記録
 record.last_modified_by = userId;
 ```
+
+### `context` (object)
+実行コンテキスト情報
+
+```javascript
+// イベントタイプ
+console.log('イベント:', context.event); // "ON_CREATE" | "ON_UPDATE" | "ON_CHANGE" | "ON_BUTTON_CLICK" | "SCHEDULED"
+
+// データベースID
+console.log('Form ID:', context.formId);
+```
+
+### `context.field` (string, ON_CHANGEのみ)
+変更されたフィールド名
+
+```javascript
+if (context.event === 'ON_CHANGE') {
+  console.log('変更フィールド:', context.field);
+  console.log('変更後の値:', context.value);
+}
+```
+
+### `context.value` (any, ON_CHANGEのみ)
+変更後の値
+
+### `context.actionId` (string, ON_BUTTON_CLICKのみ)
+クリックされたボタンのアクションID
+
+```javascript
+if (context.event === 'ON_BUTTON_CLICK') {
+  console.log('アクションID:', context.actionId); // 例: "approve"
+}
+```
+
+### `context.actionArgs` (object, ON_BUTTON_CLICKのみ)
+ボタンクリック時に確認ダイアログで入力された値
+
+```javascript
+if (context.event === 'ON_BUTTON_CLICK') {
+  const comment = context.actionArgs && context.actionArgs.comment;
+  console.log('コメント:', comment);
+}
+```
+
+### サブテーブル（ARRAYフィールド）の操作
+
+Script内でサブテーブルに行を追加できます:
+
+```javascript
+// 配列を取得（未初期化なら空配列）
+var history = record.approval_history || [];
+
+// 行を追加（承認者情報を含む）
+history.push({
+  action: '承認',
+  approver: userId,
+  comment: (context.actionArgs && context.actionArgs.comment) || '',
+  executed_at: new Date().toISOString()
+});
+
+// レコードに書き戻す
+record.approval_history = history;
+```
+
+> **注意**: `context.actionArgs?.comment` のオプショナルチェイニングは GraalVM で動作しない場合があります。`context.actionArgs && context.actionArgs.comment` の形式を使用してください。
 
 ### `api` (object)
 API操作オブジェクト（詳細は後述）
@@ -124,7 +191,7 @@ const activeCustomers = customers.filter(c =>
 {
   id: string,           // 作成されたレコードID
   formId: string,       // フォームID
-  versionId: string,    // バージョンID
+  versionUlid: string,  // バージョンULID
   createdAt: string,    // 作成日時 (ISO 8601)
 }
 ```
