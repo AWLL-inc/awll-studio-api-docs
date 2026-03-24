@@ -169,6 +169,16 @@ const handleDelete = async (recordId) => {
 };
 ```
 
+### Nodes API経由の更新とanswerDataの同期
+
+`useRecords` / `useRecord` は `answerData` を読みます。Issue #1325 の自動同期実装により、Nodes API（`PUT /api/answers/{answerId}/nodes/{rowId}`）で
+サブテーブル行を更新すると、answerData も自動同期されます。`rebuild-index` の手動呼び出しは通常不要です。データ更新後は `refetch()` で最新データを再取得してください。
+
+```tsx
+// Nodes API更新後はrefetchだけでOK（answerDataは自動同期済み）
+refetch();
+```
+
 ### 使用例
 
 #### 例1: シンプルな一覧表示

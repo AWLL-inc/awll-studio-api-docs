@@ -29,14 +29,14 @@
 #### 回避策
 
 1. **DELETE → POST で再作成**: answerIdは変わるが確実にanswerDataに反映される
-2. **Nodes API で個別ノードを更新**: 特定のサブレコードだけ更新可能。ただしanswerDataには反映されないため、カスタム画面との整合性に注意
+2. **Nodes API で個別ノードを更新**: 特定のサブレコードだけ更新可能。Issue #1325 により answerData にも自動同期される
 3. **UI手動更新**: AWLL Studio画面からの更新は確実に反映される
 
 #### ARRAY データの更新ルール
 
 - POST（新規作成）: `answerData` にARRAYデータを含めて送信すればanswerDataとノード両方に反映される
 - PUT（全体更新）: 同上だが、データ量が大きい場合504のリスクあり
-- Nodes API PUT: ノードツリーのみ更新。**answerData（検索インデックス）には反映されない**。answerDataとの同期が必要な場合は、別途 PUT `/api/v1/forms/{formId}/answers/{answerId}` を実行するか、POST `/api/v1/forms/{formId}/answers/rebuild-index` でインデックスを再構築する
+- Nodes API PUT: Issue #1325 の自動同期実装により、answerData にも自動反映される。通常は `rebuild-index` の手動呼び出しは不要
 
 ---
 
@@ -400,4 +400,4 @@ Content-Type: `application/zip`
 
 ---
 
-**更新日**: 2026-03-16
+**更新日**: 2026-03-24
