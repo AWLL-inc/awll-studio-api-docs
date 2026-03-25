@@ -235,4 +235,331 @@
 
 ---
 
-**更新日**: 2026-03-16
+## Screen Files API（マルチファイル画面定義）
+
+マルチファイルモードの画面定義に対して、個別ファイルのCRUD操作を行うAPIです。
+
+**前提条件**: 対象の画面がマルチファイルモード（`isMultiFile: true`）であること。単一ファイルモードの画面に対してこれらのAPIを呼び出すと `400 Bad Request` が返されます。
+
+### エンドポイント一覧
+
+| Method | Path | 説明 | 権限 |
+|--------|------|------|------|
+| GET | `/api/v1/screens/{screenId}/files` | ファイル一覧取得 | READ |
+| GET | `/api/v1/screens/{screenId}/files/{filePath}` | ファイル取得 | READ |
+| PUT | `/api/v1/screens/{screenId}/files/{filePath}` | ファイル作成/更新 | WRITE |
+| DELETE | `/api/v1/screens/{screenId}/files/{filePath}` | ファイル削除 | WRITE |
+| POST | `/api/v1/screens/{screenId}/files/rename` | ファイルリネーム/移動 | WRITE |
+| POST | `/api/v1/screens/{screenId}/convert-to-multifile` | 単一→マルチファイル変換 | WRITE |
+
+---
+
+### GET /api/v1/screens/{screenId}/files
+
+マルチファイル画面のファイル一覧を取得します。
+
+#### パスパラメータ
+
+| パラメータ | 型 | 説明 |
+|-----------|-----|------|
+| `screenId` | string | 画面ID |
+
+#### レスポンス (200)
+
+```json
+[
+  {
+    "filePath": "App.tsx",
+    "contentType": "text/typescript",
+    "size": 1024,
+    "updatedAt": "2026-03-25T09:00:00Z"
+  },
+  {
+    "filePath": "components/Header.tsx",
+    "contentType": "text/typescript",
+    "size": 512,
+    "updatedAt": "2026-03-25T09:05:00Z"
+  },
+  {
+    "filePath": "styles/main.css",
+    "contentType": "text/css",
+    "size": 256,
+    "updatedAt": "2026-03-25T09:10:00Z"
+  }
+]
+```
+
+#### エラーレスポンス
+
+| ステータス | 説明 |
+|-----------|------|
+| 400 | 画面がマルチファイルモードでない |
+| 403 | SCREEN_DEFINITION:READ 権限不足 |
+| 404 | 画面が存在しない |
+
+---
+
+### GET /api/v1/screens/{screenId}/files/{filePath}
+
+指定パスのファイル内容を取得します。`filePath` はネストしたパスを含むことができます（例: `components/Header.tsx`）。
+
+#### パスパラメータ
+
+| パラメータ | 型 | 説明 |
+|-----------|-----|------|
+| `screenId` | string | 画面ID |
+| `filePath` | string | ファイルパス（例: `App.tsx`, `components/Header.tsx`） |
+
+#### レスポンス (200)
+
+```json
+{
+  "filePath": "components/Header.tsx",
+  "content": "import React from 'react';\n\nexport default function Header() {\n  return <header>ヘッダー</header>;\n}\n",
+  "contentType": "text/typescript",
+  "size": 512,
+  "updatedAt": "2026-03-25T09:05:00Z"
+}
+```
+
+#### エラーレスポンス
+
+| ステータス | 説明 |
+|-----------|------|
+| 400 | 画面がマルチファイルモードでない、またはファイルパスが空 |
+| 403 | SCREEN_DEFINITION:READ 権限不足 |
+| 404 | 画面またはファイルが存在しない |
+
+---
+
+### PUT /api/v1/screens/{screenId}/files/{filePath}
+
+ファイルを作成または更新します。ファイルが既に存在する場合は上書きされます。
+
+#### パスパラメータ
+
+| パラメータ | 型 | 説明 |
+|-----------|-----|------|
+| `screenId` | string | 画面ID |
+| `filePath` | string | ファイルパス |
+
+#### リクエスト
+
+```json
+{
+  "content": "import React from 'react';\n\nexport default function Header() {\n  return <header>ヘッダー</header>;\n}\n"
+}
+```
+
+| フィールド | 型 | 必須 | バリデーション |
+|-----------|-----|------|-------------|
+| content | string | Yes | 最大1,000,000文字（1MB） |
+
+#### レスポンス (200)
+
+```json
+{
+  "filePath": "components/Header.tsx",
+  "content": "import React from 'react';\n\nexport default function Header() {\n  return <header>ヘッダー</header>;\n}\n",
+  "contentType": "text/typescript",
+  "size": 512,
+  "updatedAt": "2026-03-25T10:00:00Z"
+}
+```
+
+#### エラーレスポンス
+
+| ステータス | 説明 |
+|-----------|------|
+| 400 | 画面がマルチファイルモードでない、ファイルパスが空、またはcontentが1MBを超過 |
+| 403 | SCREEN_DEFINITION:WRITE 権限不足 |
+| 404 | 画面が存在しない |
+
+#### 注意事項
+
+- ファイル保存後、マニフェスト（ファイル一覧メタデータ）が自動的に再生成されます
+- `contentType` はファイル拡張子から自動判定されます
+
+---
+
+### DELETE /api/v1/screens/{screenId}/files/{filePath}
+
+指定パスのファイルを削除します。
+
+#### パスパラメータ
+
+| パラメータ | 型 | 説明 |
+|-----------|-----|------|
+| `screenId` | string | 画面ID |
+| `filePath` | string | ファイルパス |
+
+#### レスポンス (200)
+
+レスポンスボディなし。
+
+#### エラーレスポンス
+
+| ステータス | 説明 |
+|-----------|------|
+| 400 | 画面がマルチファイルモードでない、ファイルパスが空、またはエントリーポイントを削除しようとした |
+| 403 | SCREEN_DEFINITION:WRITE 権限不足 |
+| 404 | 画面が存在しない |
+
+#### 注意事項
+
+- **エントリーポイント（デフォルト: `App.tsx`）は削除できません**。エントリーポイントを変更するには、先にリネームAPIで別のファイルに移動してください。
+- 削除後、マニフェストが自動的に再生成されます。
+
+---
+
+### POST /api/v1/screens/{screenId}/files/rename
+
+ファイルをリネームまたは移動します。
+
+#### パスパラメータ
+
+| パラメータ | 型 | 説明 |
+|-----------|-----|------|
+| `screenId` | string | 画面ID |
+
+#### リクエスト
+
+```json
+{
+  "oldPath": "components/Header.tsx",
+  "newPath": "components/AppHeader.tsx"
+}
+```
+
+| フィールド | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| oldPath | string | Yes | 現在のファイルパス |
+| newPath | string | Yes | 新しいファイルパス |
+
+#### レスポンス (200)
+
+```json
+{
+  "filePath": "components/AppHeader.tsx",
+  "contentType": "text/typescript",
+  "size": 512,
+  "updatedAt": "2026-03-25T10:30:00Z"
+}
+```
+
+#### エラーレスポンス
+
+| ステータス | 説明 |
+|-----------|------|
+| 400 | 画面がマルチファイルモードでない、パスが空、または移動先に既にファイルが存在する |
+| 403 | SCREEN_DEFINITION:WRITE 権限不足 |
+| 404 | 画面が存在しない |
+
+#### 注意事項
+
+- エントリーポイントファイルをリネームした場合、画面定義のエントリーポイント設定も自動的に更新されます。
+- リネーム後、マニフェストが自動的に再生成されます。
+
+---
+
+### POST /api/v1/screens/{screenId}/convert-to-multifile
+
+単一ファイルモードの画面をマルチファイルモードに変換します。既存の `sourceCode` が `App.tsx` として保存されます。
+
+#### パスパラメータ
+
+| パラメータ | 型 | 説明 |
+|-----------|-----|------|
+| `screenId` | string | 画面ID |
+
+#### リクエスト
+
+リクエストボディなし。
+
+#### レスポンス (200)
+
+```json
+{
+  "success": true,
+  "screenId": "scr-001",
+  "version": "01ARZ3...",
+  "entryPoint": "App.tsx",
+  "fileCount": 1
+}
+```
+
+#### エラーレスポンス
+
+| ステータス | 説明 |
+|-----------|------|
+| 400 | 既にマルチファイルモードである |
+| 403 | SCREEN_DEFINITION:WRITE 権限不足 |
+| 404 | 画面が存在しない |
+
+#### 注意事項
+
+- 変換は不可逆です。マルチファイルモードから単一ファイルモードへは戻せません。
+- 既存の `sourceCode` フィールドの内容がエントリーポイント（`App.tsx`）として自動的に保存されます。
+- 変換後は Screen Files API を使ってファイルを追加・編集できます。
+
+---
+
+### Screen Files データモデル
+
+#### ScreenFileDTO（ファイル詳細）
+
+```typescript
+{
+  filePath: string;       // ファイルパス（例: "App.tsx", "components/Header.tsx"）
+  content: string;        // ファイル内容
+  contentType: string;    // コンテンツタイプ（例: "text/typescript", "text/css"）
+  size: number;           // ファイルサイズ（バイト）
+  updatedAt: datetime;    // 最終更新日時
+}
+```
+
+#### ScreenFileSummaryDTO（ファイル一覧用）
+
+`ScreenFileDTO` から `content` を除外した軽量版。
+
+```typescript
+{
+  filePath: string;       // ファイルパス
+  contentType: string;    // コンテンツタイプ
+  size: number;           // ファイルサイズ（バイト）
+  updatedAt: datetime;    // 最終更新日時
+}
+```
+
+#### SaveFileRequest
+
+```typescript
+{
+  content: string;        // ファイル内容（最大1MB）
+}
+```
+
+#### RenameFileRequest
+
+```typescript
+{
+  oldPath: string;        // 現在のファイルパス
+  newPath: string;        // 新しいファイルパス
+}
+```
+
+#### ConvertToMultiFileResponse
+
+```typescript
+{
+  success: boolean;       // 変換成功
+  screenId: string;       // 画面ID
+  version: string;        // バージョンID
+  entryPoint: string;     // エントリーポイントファイルパス
+  fileCount: number;      // 変換後のファイル数
+}
+```
+
+---
+
+**更新日**: 2026-03-25

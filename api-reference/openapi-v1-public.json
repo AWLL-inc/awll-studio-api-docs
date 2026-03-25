@@ -26,6 +26,10 @@
       "description": "スクリーン管理API - 画面定義のCRUD操作、公開、デプロイ、ロールバック"
     },
     {
+      "name": "Screen Files",
+      "description": "Screen Files API - マルチファイル画面定義のファイルCRUD操作、リネーム、単一→マルチファイル変換"
+    },
+    {
       "name": "Webhooks",
       "description": "Webhook管理API"
     },
@@ -838,7 +842,7 @@
           "Form Answers"
         ],
         "summary": "回答更新（全体置換）",
-        "description": "既存の回答を全体置換で更新します。バリデーション付き。\n\n⚠️ **注意: 大量ネストデータでのタイムアウトリスク**\n\nARRAYフィールド（サブテーブル）を多く含む回答の全体PUTは、内部でノードツリーの再構築が発生するため、ゲートウェイのタイムアウト（60秒）を超過して504 Gateway Timeoutになる場合があります。\n\n**推奨される代替手段:**\n- 特定フィールドのみ更新: `PATCH /api/v1/forms/{formId}/answers/{answerId}` で差分更新\n- 個別ノード更新: `PUT /api/answers/{answerId}/nodes/{rowId}` でサブテーブル行を個別更新\n- 新規ノード追加: `POST /api/answers/{answerId}/nodes` でサブテーブル行を追加\n\n**504が発生する目安:**\n- 3階層以上のネスト（例: 年度→案件ARRAY→月次ARRAY）\n- サブテーブル合計100行以上\n\n**権限:** FORM_ANSWER:WRITE + BUSINESS_ACCESS権限",
+        "description": "既存の回答を全体置換で更新します。バリデーション付き。\n\n⚠️ **注意: 大量ネストデータでのタイムアウトリスク**\n\nARRAYフィールド（サブテーブル）を多く含む回答の全体PUTは、内部でノードツリーの再構築が発生するため、CDN/ロードバランサーのタイムアウト（30秒）を超過して504 Gateway Timeoutになる場合があります。\n\n**推奨される代替手段:**\n- 特定フィールドのみ更新: `PATCH /api/v1/forms/{formId}/answers/{answerId}` で差分更新\n- 個別ノード更新: `PUT /api/answers/{answerId}/nodes/{rowId}` でサブテーブル行を個別更新\n- 新規ノード追加: `POST /api/answers/{answerId}/nodes` でサブテーブル行を追加\n\n**504が発生する目安:**\n- 3階層以上のネスト（例: 年度→案件ARRAY→月次ARRAY）\n- サブテーブル合計100行以上\n\n**権限:** FORM_ANSWER:WRITE + BUSINESS_ACCESS権限",
         "operationId": "updateAnswer",
         "parameters": [
           {
@@ -4993,6 +4997,327 @@
           }
         ]
       }
+    },
+    "/api/v1/screens/{screenId}/files": {
+      "get": {
+        "tags": [
+          "Screen Files"
+        ],
+        "summary": "ファイル一覧取得",
+        "description": "マルチファイル画面のファイル一覧を取得します。画面がマルチファイルモード（isMultiFile: true）でない場合は400エラーを返します。",
+        "operationId": "listScreenFiles",
+        "parameters": [
+          {
+            "name": "screenId",
+            "in": "path",
+            "description": "画面ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "取得成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ScreenFileSummaryDTO"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "画面がマルチファイルモードでない"
+          },
+          "403": {
+            "description": "権限不足（SCREEN_DEFINITION:READ が必要）"
+          },
+          "404": {
+            "description": "画面が存在しない"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/screens/{screenId}/files/{filePath}": {
+      "get": {
+        "tags": [
+          "Screen Files"
+        ],
+        "summary": "ファイル取得",
+        "description": "指定パスのファイル内容を取得します。filePathはネストしたパスを含むことができます（例: components/Header.tsx）。",
+        "operationId": "getScreenFile",
+        "parameters": [
+          {
+            "name": "screenId",
+            "in": "path",
+            "description": "画面ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "filePath",
+            "in": "path",
+            "description": "ファイルパス（例: App.tsx, components/Header.tsx）",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "取得成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScreenFileDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "画面がマルチファイルモードでない、またはファイルパスが空"
+          },
+          "403": {
+            "description": "権限不足（SCREEN_DEFINITION:READ が必要）"
+          },
+          "404": {
+            "description": "画面またはファイルが存在しない"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Screen Files"
+        ],
+        "summary": "ファイル作成/更新",
+        "description": "ファイルを作成または更新します。ファイルが既に存在する場合は上書きされます。保存後、マニフェスト（ファイル一覧メタデータ）が自動的に再生成されます。",
+        "operationId": "saveScreenFile",
+        "parameters": [
+          {
+            "name": "screenId",
+            "in": "path",
+            "description": "画面ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "filePath",
+            "in": "path",
+            "description": "ファイルパス",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveFileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "保存成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScreenFileDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "画面がマルチファイルモードでない、ファイルパスが空、またはcontentが1MBを超過"
+          },
+          "403": {
+            "description": "権限不足（SCREEN_DEFINITION:WRITE が必要）"
+          },
+          "404": {
+            "description": "画面が存在しない"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Screen Files"
+        ],
+        "summary": "ファイル削除",
+        "description": "指定パスのファイルを削除します。エントリーポイントファイルは削除できません。削除後、マニフェストが自動的に再生成されます。",
+        "operationId": "deleteScreenFile",
+        "parameters": [
+          {
+            "name": "screenId",
+            "in": "path",
+            "description": "画面ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "filePath",
+            "in": "path",
+            "description": "ファイルパス",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "削除成功"
+          },
+          "400": {
+            "description": "画面がマルチファイルモードでない、ファイルパスが空、またはエントリーポイントを削除しようとした"
+          },
+          "403": {
+            "description": "権限不足（SCREEN_DEFINITION:WRITE が必要）"
+          },
+          "404": {
+            "description": "画面が存在しない"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/screens/{screenId}/files/rename": {
+      "post": {
+        "tags": [
+          "Screen Files"
+        ],
+        "summary": "ファイルリネーム/移動",
+        "description": "ファイルをリネームまたは移動します。エントリーポイントファイルをリネームした場合、画面定義のエントリーポイント設定も自動的に更新されます。",
+        "operationId": "renameScreenFile",
+        "parameters": [
+          {
+            "name": "screenId",
+            "in": "path",
+            "description": "画面ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameFileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "リネーム成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScreenFileSummaryDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "画面がマルチファイルモードでない、パスが空、または移動先に既にファイルが存在する"
+          },
+          "403": {
+            "description": "権限不足（SCREEN_DEFINITION:WRITE が必要）"
+          },
+          "404": {
+            "description": "画面が存在しない"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/screens/{screenId}/convert-to-multifile": {
+      "post": {
+        "tags": [
+          "Screen Files"
+        ],
+        "summary": "単一→マルチファイル変換",
+        "description": "単一ファイルモードの画面をマルチファイルモードに変換します。既存のsourceCodeがエントリーポイント（App.tsx）として保存されます。この変換は不可逆です。",
+        "operationId": "convertToMultiFile",
+        "parameters": [
+          {
+            "name": "screenId",
+            "in": "path",
+            "description": "画面ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "変換成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConvertToMultiFileResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "既にマルチファイルモードである"
+          },
+          "403": {
+            "description": "権限不足（SCREEN_DEFINITION:WRITE が必要）"
+          },
+          "404": {
+            "description": "画面が存在しない"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -8248,6 +8573,136 @@
           "databaseId",
           "permissionType",
           "userId"
+        ]
+      },
+      "ScreenFileDTO": {
+        "type": "object",
+        "description": "ファイル詳細（内容含む）",
+        "properties": {
+          "filePath": {
+            "type": "string",
+            "description": "ファイルパス（例: App.tsx, components/Header.tsx）"
+          },
+          "content": {
+            "type": "string",
+            "description": "ファイル内容"
+          },
+          "contentType": {
+            "type": "string",
+            "description": "コンテンツタイプ（例: text/typescript, text/css）"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "ファイルサイズ（バイト）"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "最終更新日時"
+          }
+        },
+        "required": [
+          "filePath",
+          "content",
+          "contentType",
+          "size",
+          "updatedAt"
+        ]
+      },
+      "ScreenFileSummaryDTO": {
+        "type": "object",
+        "description": "ファイル一覧用（contentなし軽量版）",
+        "properties": {
+          "filePath": {
+            "type": "string",
+            "description": "ファイルパス"
+          },
+          "contentType": {
+            "type": "string",
+            "description": "コンテンツタイプ"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "ファイルサイズ（バイト）"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "最終更新日時"
+          }
+        },
+        "required": [
+          "filePath",
+          "contentType",
+          "size",
+          "updatedAt"
+        ]
+      },
+      "SaveFileRequest": {
+        "type": "object",
+        "description": "ファイル作成/更新リクエスト",
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "ファイル内容",
+            "maxLength": 1000000
+          }
+        },
+        "required": [
+          "content"
+        ]
+      },
+      "RenameFileRequest": {
+        "type": "object",
+        "description": "ファイルリネーム/移動リクエスト",
+        "properties": {
+          "oldPath": {
+            "type": "string",
+            "description": "現在のファイルパス"
+          },
+          "newPath": {
+            "type": "string",
+            "description": "新しいファイルパス"
+          }
+        },
+        "required": [
+          "oldPath",
+          "newPath"
+        ]
+      },
+      "ConvertToMultiFileResponse": {
+        "type": "object",
+        "description": "単一→マルチファイル変換レスポンス",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "変換成功"
+          },
+          "screenId": {
+            "type": "string",
+            "description": "画面ID"
+          },
+          "version": {
+            "type": "string",
+            "description": "バージョンID"
+          },
+          "entryPoint": {
+            "type": "string",
+            "description": "エントリーポイントファイルパス"
+          },
+          "fileCount": {
+            "type": "integer",
+            "description": "変換後のファイル数"
+          }
+        },
+        "required": [
+          "success",
+          "screenId",
+          "version",
+          "entryPoint",
+          "fileCount"
         ]
       }
     },

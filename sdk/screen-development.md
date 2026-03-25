@@ -446,6 +446,192 @@ const context = useExecutionContext();
 2. テナント・ユーザー権限を確認
 3. `useRecords`の`error`プロパティでエラー詳細確認
 
+## マルチファイル画面開発
+
+### 概要
+
+マルチファイルモードを使用すると、1つの画面定義を複数のファイルに分割して管理できます。コンポーネントの分離、スタイルの分離、ユーティリティの再利用など、より本格的な画面開発が可能になります。
+
+### マルチファイルモードへの変換
+
+#### API経由
+
+```bash
+curl -X POST "https://api.awll-studio.ai/api/v1/screens/{screenId}/convert-to-multifile" \
+  -H "Authorization: Bearer <token>"
+```
+
+レスポンス:
+
+```json
+{
+  "success": true,
+  "screenId": "scr-001",
+  "version": "01ARZ3...",
+  "entryPoint": "App.tsx",
+  "fileCount": 1
+}
+```
+
+変換後、既存の `sourceCode` が `App.tsx`（エントリーポイント）として保存されます。
+
+#### UI経由
+
+管理画面のスクリーンビルダーで「マルチファイルに変換」ボタンをクリックします。
+
+> **注意**: マルチファイルへの変換は不可逆です。単一ファイルモードには戻せません。
+
+### ファイル構成例
+
+```
+App.tsx                    # エントリーポイント（必須）
+components/
+  Header.tsx               # ヘッダーコンポーネント
+  CustomerTable.tsx        # テーブルコンポーネント
+  SearchForm.tsx           # 検索フォーム
+hooks/
+  useCustomerData.ts       # カスタムフック
+styles/
+  main.css                 # スタイル
+utils/
+  formatters.ts            # ユーティリティ関数
+```
+
+### エントリーポイント
+
+- エントリーポイントはデフォルトで `App.tsx` です
+- エントリーポイントには `export default` が必要です（単一ファイルモードと同じ）
+- エントリーポイントファイルは削除できません
+- リネームAPIでエントリーポイントを移動した場合、設定は自動更新されます
+
+### ファイル間のimportパターン
+
+マルチファイル画面では、相対パスを使ってファイル間でimportできます。
+
+```tsx
+// App.tsx
+import React from 'react';
+import { useExecutionContext } from '@awll/sdk';
+import Header from './components/Header';
+import CustomerTable from './components/CustomerTable';
+import './styles/main.css';
+
+export default function App() {
+  const context = useExecutionContext();
+
+  return (
+    <div>
+      <Header title="顧客管理" userName={context.currentUser.name} />
+      <CustomerTable />
+    </div>
+  );
+}
+```
+
+```tsx
+// components/Header.tsx
+import React from 'react';
+
+interface HeaderProps {
+  title: string;
+  userName: string;
+}
+
+export default function Header({ title, userName }: HeaderProps) {
+  return (
+    <header>
+      <h1>{title}</h1>
+      <span>ログインユーザー: {userName}</span>
+    </header>
+  );
+}
+```
+
+```tsx
+// components/CustomerTable.tsx
+import React from 'react';
+import { useRecords } from '@awll/sdk';
+import { formatDate } from '../utils/formatters';
+
+export default function CustomerTable() {
+  const { data, isLoading } = useRecords('customer_form');
+
+  if (isLoading) return <div>読み込み中...</div>;
+
+  return (
+    <table>
+      <thead>
+        <tr>
+          <th>顧客名</th>
+          <th>登録日</th>
+        </tr>
+      </thead>
+      <tbody>
+        {data.map((record) => (
+          <tr key={record.recordId}>
+            <td>{record.values.customer_name}</td>
+            <td>{formatDate(record.metadata.createdAt)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+```
+
+### ファイル操作API
+
+#### ファイル一覧取得
+
+```bash
+curl "https://api.awll-studio.ai/api/v1/screens/{screenId}/files" \
+  -H "Authorization: Bearer <token>"
+```
+
+#### ファイル取得
+
+```bash
+curl "https://api.awll-studio.ai/api/v1/screens/{screenId}/files/components/Header.tsx" \
+  -H "Authorization: Bearer <token>"
+```
+
+#### ファイル作成/更新
+
+```bash
+curl -X PUT "https://api.awll-studio.ai/api/v1/screens/{screenId}/files/components/Footer.tsx" \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "import React from '\''react'\'';\n\nexport default function Footer() {\n  return <footer>Copyright 2026</footer>;\n}\n"
+  }'
+```
+
+#### ファイル削除
+
+```bash
+curl -X DELETE "https://api.awll-studio.ai/api/v1/screens/{screenId}/files/components/OldComponent.tsx" \
+  -H "Authorization: Bearer <token>"
+```
+
+#### ファイルリネーム/移動
+
+```bash
+curl -X POST "https://api.awll-studio.ai/api/v1/screens/{screenId}/files/rename" \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "oldPath": "components/Header.tsx",
+    "newPath": "components/AppHeader.tsx"
+  }'
+```
+
+### 制約事項
+
+- ファイル内容は最大1MB
+- エントリーポイントファイルは削除不可（リネームは可能）
+- マルチファイルモードでない画面に対してファイル操作APIを呼び出すと `400 Bad Request` が返される
+- `contentType` はファイル拡張子から自動判定される（`.tsx` → `text/typescript`, `.css` → `text/css` 等）
+
 ## 参考資料
 
 - [Screen SDK API Reference](./screen-sdk-reference.md)
