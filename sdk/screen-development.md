@@ -280,6 +280,143 @@ navigateToForm(formId: string, options?: { mode?: 'list' | 'create' | 'edit'; re
 | `create` | `/forms/:formId/answers/new` | 新規作成画面 |
 | `edit` | `/forms/:formId/answers/:recordId/edit` | 編集画面 |
 
+### パターン: 複数画面をまたぐ業務フロー
+
+顧客一覧→顧客詳細→商談→TODOのように複数画面を遷移する場合、画面ごとに `screenCode` を分け、クエリパラメータで文脈（どの顧客か、どの商談か）を引き継ぎます。
+
+#### URL遷移イメージ
+
+```
+/business/screens/scr-001                                ← 顧客一覧
+/business/screens/scr-002?customerId=ans-001             ← 顧客詳細
+/business/screens/scr-003?customerId=ans-001&dealId=d-01 ← 商談詳細
+/business/screens/scr-004?customerId=ans-001&todoId=t-01 ← TODO詳細
+```
+
+各URLはブラウザバック・リロード・URL共有いずれも動作します。
+
+#### 顧客一覧（customer_list）
+
+```tsx
+import React from 'react';
+import { useRecords, useNavigation } from '@awll/sdk';
+
+export default function CustomerList() {
+  const { data: records, isLoading } = useRecords('customer_form');
+  const { navigateToScreen } = useNavigation();
+
+  if (isLoading) return <div>読み込み中...</div>;
+
+  return (
+    <table>
+      <thead><tr><th>顧客名</th><th>メール</th></tr></thead>
+      <tbody>
+        {records.map((r) => (
+          <tr key={r.answerId}
+              onClick={() => navigateToScreen('customer_detail', {
+                customerId: r.answerId,
+              })}
+              style={{ cursor: 'pointer' }}>
+            <td>{r.values.customer_name}</td>
+            <td>{r.values.email}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+```
+
+#### 顧客詳細（customer_detail）
+
+```tsx
+import React from 'react';
+import { useRecord, useRecords, useNavigation, useExecutionContext } from '@awll/sdk';
+
+export default function CustomerDetail() {
+  const { params } = useExecutionContext();
+  const { customerId } = params;
+  const { navigateToScreen, goBack } = useNavigation();
+
+  const { data: customer, isLoading } = useRecord('customer_form', customerId);
+  const { data: deals } = useRecords('deal_form', {
+    filter: { customer_id: customerId },
+  });
+
+  if (isLoading) return <div>読み込み中...</div>;
+
+  return (
+    <div>
+      <button onClick={goBack}>← 一覧に戻る</button>
+      <h1>{customer.values.customer_name}</h1>
+
+      <h2>商談一覧</h2>
+      <ul>
+        {deals?.map((deal) => (
+          <li key={deal.answerId}
+              onClick={() => navigateToScreen('deal_detail', {
+                customerId,
+                dealId: deal.answerId,
+              })}
+              style={{ cursor: 'pointer' }}>
+            {deal.values.deal_name} - {deal.values.amount}円
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+```
+
+#### 商談詳細（deal_detail）
+
+```tsx
+import React from 'react';
+import { useRecord, useRecords, useNavigation, useExecutionContext } from '@awll/sdk';
+
+export default function DealDetail() {
+  const { params } = useExecutionContext();
+  const { customerId, dealId } = params;
+  const { navigateToScreen, goBack } = useNavigation();
+
+  const { data: deal, isLoading } = useRecord('deal_form', dealId);
+  const { data: todos } = useRecords('todo_form', {
+    filter: { deal_id: dealId },
+  });
+
+  if (isLoading) return <div>読み込み中...</div>;
+
+  return (
+    <div>
+      <button onClick={goBack}>← 顧客詳細に戻る</button>
+      <h1>商談: {deal.values.deal_name}</h1>
+      <p>金額: {deal.values.amount}円</p>
+
+      <h2>TODO</h2>
+      <ul>
+        {todos?.map((todo) => (
+          <li key={todo.answerId}
+              onClick={() => navigateToScreen('todo_detail', {
+                customerId,
+                todoId: todo.answerId,
+              })}
+              style={{ cursor: 'pointer' }}>
+            {todo.values.title} - {todo.values.status}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+```
+
+#### ポイント
+
+- **文脈の引き継ぎ**: 遷移先に `customerId` を常に渡すことで、どの画面からでも「どの顧客の情報か」が明確
+- **ブラウザバック対応**: `navigateToScreen` は通常のページ遷移なので、ブラウザの戻るボタンで前画面に戻れる
+- **URL共有**: クエリパラメータに全ての文脈が含まれるため、URLをコピーして他の人に共有可能
+- **コンポーネント共有**: マルチファイルモードを使えば、共通コンポーネント（ヘッダー、ローディング等）を各画面間で再利用可能
+
 ### その他のナビゲーション
 
 ```typescript
