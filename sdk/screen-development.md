@@ -162,6 +162,136 @@ export default function CustomerDetail() {
 }
 ```
 
+## 画面間ナビゲーション
+
+### URL体系
+
+カスタム画面（Screen）は以下のURL構造で動作します:
+
+```
+/business/screens/:screenId?key1=value1&key2=value2
+```
+
+一覧画面→詳細画面の遷移は、**クエリパラメータ** で answerId や nodeId を受け渡します。
+
+### パターン: 一覧画面→詳細画面の遷移
+
+#### 一覧画面（customer_list）
+
+```tsx
+import React from 'react';
+import { useRecords, useNavigation } from '@awll/sdk';
+
+export default function CustomerList() {
+  const { data: records, total, isLoading } = useRecords('customer_form');
+  const { navigateToScreen } = useNavigation();
+
+  if (isLoading) return <div>読み込み中...</div>;
+
+  const handleRowClick = (record) => {
+    // 詳細画面へ遷移（answerId と nodeId をクエリパラメータで渡す）
+    navigateToScreen('customer_detail', {
+      answerId: record.answerId,
+      nodeId: record.rootNodeId,
+    });
+    // → /business/screens/scr-xxx?answerId=ans-001&nodeId=node-001
+  };
+
+  return (
+    <div>
+      <h1>顧客一覧 ({total}件)</h1>
+      <table>
+        <thead>
+          <tr><th>顧客名</th><th>メール</th></tr>
+        </thead>
+        <tbody>
+          {records.map((record) => (
+            <tr key={record.answerId} onClick={() => handleRowClick(record)}
+                style={{ cursor: 'pointer' }}>
+              <td>{record.values.customer_name}</td>
+              <td>{record.values.email}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+```
+
+#### 詳細画面（customer_detail）
+
+```tsx
+import React from 'react';
+import { useRecord, useNavigation, useExecutionContext } from '@awll/sdk';
+
+export default function CustomerDetail() {
+  const { params } = useExecutionContext();
+  const { answerId, nodeId } = params; // クエリパラメータから取得
+  const { goBack } = useNavigation();
+
+  const { data: customer, isLoading } = useRecord('customer_form', answerId);
+
+  if (isLoading) return <div>読み込み中...</div>;
+  if (!customer) return <div>顧客が見つかりません</div>;
+
+  return (
+    <div>
+      <button onClick={goBack}>← 一覧に戻る</button>
+      <h1>顧客詳細</h1>
+      <dl>
+        <dt>顧客名</dt>
+        <dd>{customer.values.customer_name}</dd>
+        <dt>メールアドレス</dt>
+        <dd>{customer.values.email}</dd>
+      </dl>
+      {/* nodeId が必要な場合はサブテーブル操作に使用 */}
+    </div>
+  );
+}
+```
+
+### navigateToScreen API
+
+```typescript
+navigateToScreen(screenCode: string, params?: Record<string, string>): void
+```
+
+| 引数 | 型 | 説明 |
+|------|-----|------|
+| `screenCode` | string | 遷移先の画面コード（`^[a-z0-9_]+$`） |
+| `params` | Record<string, string> | クエリパラメータ（URLエンコードされる） |
+
+- `screenCode` から screenId を自動解決（`GET /api/v1/screens/code/{screenCode}/published`）
+- `params` は `?key=value&...` としてURLに付与される
+- ブラウザバック・リロード・URL共有いずれも動作する
+
+### navigateToForm API
+
+データベースの組み込み画面（一覧・新規作成・編集）へ直接遷移する場合:
+
+```typescript
+navigateToForm(formId: string, options?: { mode?: 'list' | 'create' | 'edit'; recordId?: string }): void
+```
+
+| mode | 遷移先URL | 説明 |
+|------|-----------|------|
+| `list` | `/forms/:formId/answers` | 一覧画面 |
+| `create` | `/forms/:formId/answers/new` | 新規作成画面 |
+| `edit` | `/forms/:formId/answers/:recordId/edit` | 編集画面 |
+
+### その他のナビゲーション
+
+```typescript
+// 外部URLへ遷移（http/httpsのみ）
+navigateToExternalUrl(url: string, options?: { newTab?: boolean }): void
+
+// ブラウザバック
+goBack(): void
+```
+
+---
+
 ## データ更新パターン
 
 ### パターン4: レコード作成データベース
