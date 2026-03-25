@@ -417,6 +417,185 @@ export default function DealDetail() {
 - **URL共有**: クエリパラメータに全ての文脈が含まれるため、URLをコピーして他の人に共有可能
 - **コンポーネント共有**: マルチファイルモードを使えば、共通コンポーネント（ヘッダー、ローディング等）を各画面間で再利用可能
 
+### パターン: 1つのマルチファイル画面で複数ビューを実現
+
+マルチファイル化した1つの画面定義の中で、クエリパラメータに応じて表示を切り替えるパターンです。`navigateToScreen` で**自分自身の screenCode** を指定し、パラメータだけ変えることで画面内ルーティングを実現します。
+
+#### URL遷移イメージ（screenIdは全て同一）
+
+```
+/business/screens/scr-001                                ← 顧客一覧（パラメータなし）
+/business/screens/scr-001?customerId=ans-001             ← 顧客詳細
+/business/screens/scr-001?customerId=ans-001&dealId=d-01 ← 商談詳細
+/business/screens/scr-001?customerId=ans-001&todoId=t-01 ← TODO詳細
+```
+
+#### ファイル構成例
+
+```
+App.tsx                      # エントリーポイント（ルーティング）
+views/
+  CustomerList.tsx           # 顧客一覧ビュー
+  CustomerDetail.tsx         # 顧客詳細ビュー
+  DealDetail.tsx             # 商談詳細ビュー
+  TodoDetail.tsx             # TODO詳細ビュー
+components/
+  PageHeader.tsx             # 共通ヘッダー
+  LoadingSpinner.tsx         # 共通ローディング
+```
+
+#### App.tsx（エントリーポイント — ルーティング）
+
+```tsx
+import React from 'react';
+import { useExecutionContext } from '@awll/sdk';
+import CustomerList from './views/CustomerList';
+import CustomerDetail from './views/CustomerDetail';
+import DealDetail from './views/DealDetail';
+import TodoDetail from './views/TodoDetail';
+
+export default function App() {
+  const { params } = useExecutionContext();
+
+  // クエリパラメータの有無で表示するビューを決定
+  if (params.todoId)     return <TodoDetail />;
+  if (params.dealId)     return <DealDetail />;
+  if (params.customerId) return <CustomerDetail />;
+  return <CustomerList />;
+}
+```
+
+#### views/CustomerList.tsx
+
+```tsx
+import React from 'react';
+import { useRecords, useNavigation } from '@awll/sdk';
+import PageHeader from '../components/PageHeader';
+
+export default function CustomerList() {
+  const { data: records, isLoading } = useRecords('customer_form');
+  const { navigateToScreen } = useNavigation();
+
+  if (isLoading) return <div>読み込み中...</div>;
+
+  return (
+    <div>
+      <PageHeader title="顧客一覧" />
+      <table>
+        <thead><tr><th>顧客名</th><th>メール</th></tr></thead>
+        <tbody>
+          {records.map((r) => (
+            <tr key={r.answerId}
+                onClick={() => navigateToScreen('crm_app', {
+                  customerId: r.answerId,
+                })}
+                style={{ cursor: 'pointer' }}>
+              <td>{r.values.customer_name}</td>
+              <td>{r.values.email}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+```
+
+#### views/CustomerDetail.tsx
+
+```tsx
+import React from 'react';
+import { useRecord, useRecords, useNavigation, useExecutionContext } from '@awll/sdk';
+import PageHeader from '../components/PageHeader';
+
+export default function CustomerDetail() {
+  const { params } = useExecutionContext();
+  const { customerId } = params;
+  const { navigateToScreen, goBack } = useNavigation();
+
+  const { data: customer, isLoading } = useRecord('customer_form', customerId);
+  const { data: deals } = useRecords('deal_form', {
+    filter: { customer_id: customerId },
+  });
+
+  if (isLoading) return <div>読み込み中...</div>;
+
+  return (
+    <div>
+      <PageHeader title={customer.values.customer_name} />
+      <button onClick={goBack}>← 一覧に戻る</button>
+
+      <h2>商談一覧</h2>
+      <ul>
+        {deals?.map((deal) => (
+          <li key={deal.answerId}
+              onClick={() => navigateToScreen('crm_app', {
+                customerId,
+                dealId: deal.answerId,
+              })}
+              style={{ cursor: 'pointer' }}>
+            {deal.values.deal_name} - {deal.values.amount}円
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+```
+
+#### views/DealDetail.tsx
+
+```tsx
+import React from 'react';
+import { useRecord, useRecords, useNavigation, useExecutionContext } from '@awll/sdk';
+import PageHeader from '../components/PageHeader';
+
+export default function DealDetail() {
+  const { params } = useExecutionContext();
+  const { customerId, dealId } = params;
+  const { navigateToScreen, goBack } = useNavigation();
+
+  const { data: deal, isLoading } = useRecord('deal_form', dealId);
+  const { data: todos } = useRecords('todo_form', {
+    filter: { deal_id: dealId },
+  });
+
+  if (isLoading) return <div>読み込み中...</div>;
+
+  return (
+    <div>
+      <PageHeader title={`商談: ${deal.values.deal_name}`} />
+      <button onClick={goBack}>← 顧客詳細に戻る</button>
+      <p>金額: {deal.values.amount}円</p>
+
+      <h2>TODO</h2>
+      <ul>
+        {todos?.map((todo) => (
+          <li key={todo.answerId}
+              onClick={() => navigateToScreen('crm_app', {
+                customerId,
+                todoId: todo.answerId,
+              })}
+              style={{ cursor: 'pointer' }}>
+            {todo.values.title} - {todo.values.status}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+```
+
+#### 4画面分割との比較
+
+| | 1画面マルチファイル | 4画面分割 |
+|---|---|---|
+| 共通コンポーネント | ファイル内importで即利用 | 各画面にコピーまたはSDK共通化が必要 |
+| 状態共有 | React stateで直接共有可能 | クエリパラメータ経由のみ |
+| デプロイ単位 | 1画面まとめて公開 | 個別に公開・管理 |
+| URL構造 | 同一screenId + パラメータで分岐 | screenCodeごとに別URL |
+| 適用場面 | 密結合な業務フロー（CRM等） | 独立性の高い画面群 |
+
 ### その他のナビゲーション
 
 ```typescript
