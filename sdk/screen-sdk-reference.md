@@ -93,7 +93,7 @@ interface UseRecordsOptions {
   formId: string;              // データベースID（必須）
   pagination?: {
     page?: number;             // ページ番号（1始まり）
-    pageSize?: number;         // 1ページあたりの件数
+    pageSize?: number;         // 1ページあたりの件数（デフォルト20、最大1000）
   };
   filters?: Record<string, unknown>;  // フィルタ条件（実装予定）
   sort?: {
