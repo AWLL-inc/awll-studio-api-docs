@@ -695,7 +695,7 @@ api.updateRecord('customer_form', record.id, {
 // ❌ 10000件のレコードを一度に取得
 const allRecords = api.getRecords('form_id', { limit: 10000 });
 
-// ✅ ページネーションで分割処理
+// ✅ 適切な件数で取得（最大1000）
 const records = api.getRecords('form_id', { limit: 100 });
 ```
 
