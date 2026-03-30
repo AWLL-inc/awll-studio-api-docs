@@ -19,6 +19,9 @@
 | GET | `/api/v1/screens/{screenId}/versions` | バージョン履歴取得 | READ |
 | GET | `/api/v1/screens/{screenId}/deployments` | デプロイ履歴取得 | READ |
 | DELETE | `/api/v1/screens/{screenId}/versions/{version}` | バージョン物理削除 | WRITE |
+| POST | `/api/v1/screens/{screenId}/compile` | 画面コンパイル | WRITE |
+| GET | `/api/v1/screens/folders` | フォルダ一覧取得 | READ |
+| POST | `/api/v1/screens/{screenId}/move` | 画面フォルダ移動 | WRITE |
 
 
 ---
@@ -34,6 +37,7 @@
 | `limit` | integer | 20 | 取得件数（最大100） |
 | `nextToken` | string | - | ページネーショントークン |
 | `status` | string | - | フィルタ: `DRAFT` / `PUBLISHED` / `DELETED` |
+| `folder` | string | - | フォルダパスフィルタ（例: `/顧客管理`） |
 
 ### レスポンス (200)
 
@@ -55,7 +59,8 @@
       "createdBy": "user-uuid",
       "updatedBy": "user-uuid",
       "publishedAt": "2026-03-16T10:00:00Z",
-      "publishedVersion": "01ARZ3..."
+      "publishedVersion": "01ARZ3...",
+      "folderPath": "/顧客管理"
     }
   ],
   "nextToken": "eyJwayI6..."
@@ -74,7 +79,8 @@
 {
   "screenName": "顧客一覧画面",
   "screenCode": "customer_list",
-  "sourceCode": "export default function CustomerList() { ... }"
+  "sourceCode": "export default function CustomerList() { ... }",
+  "folderPath": "/顧客管理"
 }
 ```
 
@@ -83,6 +89,7 @@
 | screenName | string | Yes | 1-100文字 |
 | screenCode | string | Yes | 1-50文字、`^[a-z0-9_]+$` パターン |
 | sourceCode | string | Yes | 0-1,000,000文字 |
+| folderPath | string | No | 最大255文字、デフォルト `/`、`..` 禁止 |
 
 ---
 
@@ -226,12 +233,85 @@
   updatedBy: string;
   publishedAt: datetime | null;
   publishedVersion: string | null;
+  isMultiFile: boolean;           // マルチファイルモード
+  entryPoint: string;             // エントリーポイント（デフォルト: "App.tsx"）
+  folderPath: string;             // フォルダパス（デフォルト: "/"）
 }
 ```
 
 ### ScreenSummaryDTO（一覧取得時）
 
-`ScreenDTO` から `sourceCode` を除外した軽量版。
+`ScreenDTO` から `sourceCode` / `compiledCode` を除外した軽量版。`folderPath` を含む。
+
+---
+
+## POST /api/v1/screens/{screenId}/compile
+
+画面ソースコードをesbuildでコンパイルし、コンパイル済みコードを画面定義に保存します。デプロイ前に必ず実行してください。
+
+### リクエスト
+
+```json
+{
+  "sourceCode": "export default function App() { ... }",
+  "files": { "App.tsx": "...", "utils.ts": "..." },
+  "entryPoint": "App.tsx"
+}
+```
+
+| フィールド | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| sourceCode | string | No | 単一ファイルモード時のソースコード |
+| files | object | No | マルチファイルモード時のファイルマップ |
+| entryPoint | string | No | エントリーポイント（デフォルト: `App.tsx`） |
+
+> いずれも未指定の場合、DynamoDBに保存済みのソースコードを使用します。
+
+### レスポンス (200)
+
+```json
+{
+  "success": true,
+  "compiledCodePreview": "!function(){...",
+  "compiledCodeSize": 12345,
+  "errors": null,
+  "warnings": []
+}
+```
+
+---
+
+## GET /api/v1/screens/folders
+
+テナント内のフォルダ一覧を取得します。画面の `folderPath` 属性からユニークなフォルダパスを動的生成します。
+
+### レスポンス (200)
+
+```json
+["/", "/顧客管理", "/顧客管理/ダッシュボード", "/売上管理"]
+```
+
+---
+
+## POST /api/v1/screens/{screenId}/move
+
+画面を指定フォルダに移動します。
+
+### リクエスト
+
+```json
+{
+  "folderPath": "/顧客管理/ダッシュボード"
+}
+```
+
+| フィールド | 型 | 必須 | バリデーション |
+|-----------|-----|------|-------------|
+| folderPath | string | Yes | 最大255文字、`..` 禁止（パストラバーサル防止） |
+
+### レスポンス (200)
+
+更新された `ScreenDTO` が返却されます。
 
 ---
 
@@ -562,4 +642,4 @@
 
 ---
 
-**更新日**: 2026-03-25
+**更新日**: 2026-03-30
