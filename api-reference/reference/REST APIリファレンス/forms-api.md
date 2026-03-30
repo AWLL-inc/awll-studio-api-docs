@@ -71,6 +71,7 @@
 {
   "title": "顧客マスタ",
   "schema": {
+    "description": "顧客情報を管理するデータベース。社員の単価はロール×役職で算出。",
     "fields": [
       {
         "fieldCode": "name",
@@ -101,6 +102,7 @@
 |-----------|-----|------|------|
 | title | string | Yes | データベースタイトル（空文字不可） |
 | schema | object | Yes | JSONスキーマ定義 |
+| schema.description | string | No | データベースの説明文。FormBuilder UIの説明欄に表示される |
 
 ### レスポンス (200)
 
