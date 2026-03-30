@@ -1,0 +1,76 @@
+name: Deploy API Docs
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'デプロイ先環境'
+        required: true
+        type: choice
+        default: dev
+        options:
+          - dev
+          - prod
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ap-northeast-1
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build VitePress
+        run: pnpm build
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy HTML to S3
+        env:
+          S3_BUCKET: ${{ vars.API_DOCS_S3_BUCKET }}
+        run: |
+          aws s3 sync .vitepress/dist s3://$S3_BUCKET/ \
+            --delete \
+            --cache-control "public, max-age=3600"
+
+      - name: Deploy raw Markdown to S3
+        env:
+          S3_BUCKET: ${{ vars.API_DOCS_S3_BUCKET }}
+        run: |
+          aws s3 sync api-reference/ s3://$S3_BUCKET/raw/api-reference/ \
+            --content-type "text/markdown; charset=utf-8"
+          aws s3 sync sdk/ s3://$S3_BUCKET/raw/sdk/ \
+            --content-type "text/markdown; charset=utf-8"
+
+      - name: Invalidate CloudFront cache
+        env:
+          CF_DISTRIBUTION_ID: ${{ vars.API_DOCS_CF_DISTRIBUTION_ID }}
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id $CF_DISTRIBUTION_ID \
+            --paths "/*"
+          echo "CloudFront cache invalidated"
