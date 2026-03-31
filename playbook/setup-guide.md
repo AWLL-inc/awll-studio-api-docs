@@ -26,11 +26,11 @@ my-awll-playbook/
 ├── .env.template              # 環境変数テンプレート（git管理）
 ├── .env                       # 実際の認証情報（gitignore）
 ├── .gitignore
-├── awll-api.sh                # APIシェルヘルパー
+├── studio-api.sh                # APIシェルヘルパー
 ├── CLAUDE.md                  # Claude Code 設定（最重要）
 ├── .claude/
 │   └── skills/                # Claude Code スキル定義
-│       ├── awll-api.md        # API操作ルール（proactive、自動適用）
+│       ├── studio-api.md        # API操作ルール（proactive、自動適用）
 │       └── your-domain/       # 業務スキル
 │           ├── create-report.md
 │           └── update-status.md
@@ -45,12 +45,12 @@ my-awll-playbook/
 
 ```env
 # AWLL Studio 認証情報
-AWLL_EMAIL=your-email@example.com
-AWLL_PASSWORD=your-password
+YOUR_EMAIL=your-email@example.com
+YOUR_PASSWORD=your-password
 
 # API接続先
-AWLL_BASE_URL=https://awll-studio.ai
-AWLL_TENANT_CODE=your-tenant-code
+STUDIO_BASE_URL=https://awll-studio.ai
+STUDIO_TENANT_CODE=your-tenant-code
 ```
 
 ### .gitignore
@@ -61,31 +61,31 @@ tmp/
 node_modules/
 ```
 
-## Step 3: シェルヘルパー（awll-api.sh）
+## Step 3: シェルヘルパー（studio-api.sh）
 
 AWLL Studio API を簡単に呼び出すための関数群です。
 
 ```bash
 #!/usr/bin/env bash
-# awll-api.sh — AWLL Studio API Helper Functions
+# studio-api.sh — AWLL Studio API Helper Functions
 
 # .envから環境変数を読み込み
 if [ -f .env ]; then
   set -a; source .env; set +a
 fi
 
-AWLL_TOKEN=""
+STUDIO_TOKEN=""
 
 # 認証（トークン取得）
-awll_login() {
+studio_login() {
   local response
-  response=$(curl -s -X POST "${AWLL_BASE_URL}/api/auth/token" \
+  response=$(curl -s -X POST "${STUDIO_BASE_URL}/api/auth/token" \
     -H "Content-Type: application/json" \
-    -d "{\"email\": \"${AWLL_EMAIL}\", \"password\": \"${AWLL_PASSWORD}\"}")
+    -d "{\"email\": \"${YOUR_EMAIL}\", \"password\": \"${YOUR_PASSWORD}\"}")
 
-  AWLL_TOKEN=$(echo "$response" | jq -r '.idToken // .token // empty')
+  STUDIO_TOKEN=$(echo "$response" | jq -r '.idToken // .token // empty')
 
-  if [ -z "$AWLL_TOKEN" ]; then
+  if [ -z "$STUDIO_TOKEN" ]; then
     echo "❌ ログイン失敗"
     echo "$response" | jq .
     return 1
@@ -94,70 +94,70 @@ awll_login() {
 }
 
 # GET リクエスト
-awll_get() {
-  curl -s -X GET "${AWLL_BASE_URL}$1" \
-    -H "Authorization: Bearer ${AWLL_TOKEN}" \
-    -H "X-Tenant-Code: ${AWLL_TENANT_CODE}" | jq .
+studio_get() {
+  curl -s -X GET "${STUDIO_BASE_URL}$1" \
+    -H "Authorization: Bearer ${STUDIO_TOKEN}" \
+    -H "X-Tenant-Code: ${STUDIO_TENANT_CODE}" | jq .
 }
 
 # POST リクエスト
-awll_post() {
-  curl -s -X POST "${AWLL_BASE_URL}$1" \
-    -H "Authorization: Bearer ${AWLL_TOKEN}" \
-    -H "X-Tenant-Code: ${AWLL_TENANT_CODE}" \
+studio_post() {
+  curl -s -X POST "${STUDIO_BASE_URL}$1" \
+    -H "Authorization: Bearer ${STUDIO_TOKEN}" \
+    -H "X-Tenant-Code: ${STUDIO_TENANT_CODE}" \
     -H "Content-Type: application/json" \
     -d "$2" | jq .
 }
 
 # PATCH リクエスト（推奨: レコード更新に使用）
-awll_patch() {
-  curl -s -X PATCH "${AWLL_BASE_URL}$1" \
-    -H "Authorization: Bearer ${AWLL_TOKEN}" \
-    -H "X-Tenant-Code: ${AWLL_TENANT_CODE}" \
+studio_patch() {
+  curl -s -X PATCH "${STUDIO_BASE_URL}$1" \
+    -H "Authorization: Bearer ${STUDIO_TOKEN}" \
+    -H "X-Tenant-Code: ${STUDIO_TENANT_CODE}" \
     -H "Content-Type: application/json" \
     -d @"$2" | jq .
 }
 
 # DELETE リクエスト
-awll_delete() {
-  curl -s -X DELETE "${AWLL_BASE_URL}$1" \
-    -H "Authorization: Bearer ${AWLL_TOKEN}" \
-    -H "X-Tenant-Code: ${AWLL_TENANT_CODE}" | jq .
+studio_delete() {
+  curl -s -X DELETE "${STUDIO_BASE_URL}$1" \
+    -H "Authorization: Bearer ${STUDIO_TOKEN}" \
+    -H "X-Tenant-Code: ${STUDIO_TENANT_CODE}" | jq .
 }
 
 # ---- 便利関数 ----
 
 # データベース一覧
-awll_forms() {
-  awll_get "/api/v1/forms"
+studio_forms() {
+  studio_get "/api/v1/forms"
 }
 
 # レコード一覧
-awll_answers() {
-  awll_get "/api/v1/forms/$1/answers?limit=${2:-20}"
+studio_answers() {
+  studio_get "/api/v1/forms/$1/answers?limit=${2:-20}"
 }
 
 # レコード詳細（階層データ含む）
-awll_answer() {
-  awll_get "/api/v1/forms/$1/answers/$2?enrich=hierarchical"
+studio_answer() {
+  studio_get "/api/v1/forms/$1/answers/$2?enrich=hierarchical"
 }
 
 # テナント切り替え
-awll_use_tenant() {
-  AWLL_TENANT_CODE="$1"
-  echo "テナント切り替え: $AWLL_TENANT_CODE"
+studio_use_tenant() {
+  STUDIO_TENANT_CODE="$1"
+  echo "テナント切り替え: $STUDIO_TENANT_CODE"
 }
 ```
 
 ### 使い方
 
 ```bash
-source awll-api.sh
-awll_login
-awll_forms                           # データベース一覧
-awll_answers FORM_ID                 # レコード一覧（デフォルト20件）
-awll_answers FORM_ID 100             # レコード一覧（100件）
-awll_answer FORM_ID ANSWER_ID        # レコード詳細（階層データ含む）
+source studio-api.sh
+studio_login
+studio_forms                           # データベース一覧
+studio_answers FORM_ID                 # レコード一覧（デフォルト20件）
+studio_answers FORM_ID 100             # レコード一覧（100件）
+studio_answer FORM_ID ANSWER_ID        # レコード詳細（階層データ含む）
 ```
 
 ## Step 4: CLAUDE.md 設定
@@ -174,7 +174,7 @@ Claude Code が AWLL Studio API を理解するための設定ファイルです
 ## AWLL Studio API
 
 ### 認証
-- `source awll-api.sh && awll_login` で認証
+- `source studio-api.sh && studio_login` で認証
 - トークン有効期限: 1時間
 - Rate limit: 60 req/min
 - ヘッダー: `Authorization: Bearer <token>` + `X-Tenant-Code`
@@ -195,7 +195,7 @@ Claude Code が AWLL Studio API を理解するための設定ファイルです
 
 ## Skills
 
-- `.claude/skills/awll-api.md` — API操作時に自動適用されるルール
+- `.claude/skills/studio-api.md` — API操作時に自動適用されるルール
 - `.claude/skills/your-domain/` — 業務スキル
 ```
 
@@ -203,11 +203,11 @@ Claude Code が AWLL Studio API を理解するための設定ファイルです
 
 ### API操作ルール（proactive — 自動適用）
 
-`.claude/skills/awll-api.md`:
+`.claude/skills/studio-api.md`:
 
 ```markdown
 ---
-name: awll-api
+name: studio-api
 description: AWLL Studio API 操作時のルールを自動適用
 type: proactive
 match:
@@ -247,8 +247,8 @@ type: user-invocable
 
 ## 手順
 
-1. `awll_login` で認証
-2. `awll_answers FORM_ID 100` でレコード取得
+1. `studio_login` で認証
+2. `studio_answers FORM_ID 100` でレコード取得
 3. 条件に合致するレコードをフィルタ
 4. 各レコードを PATCH API で更新
 5. 結果サマリーを表示

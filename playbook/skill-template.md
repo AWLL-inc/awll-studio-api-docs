@@ -31,7 +31,7 @@ type: user-invocable
 
 ## 前提条件
 
-- AWLL Studio にログイン済み（`source awll-api.sh && awll_login`）
+- AWLL Studio にログイン済み（`source studio-api.sh && studio_login`）
 - 対象データベース: {データベース名}（formId: `{formId}`）
 
 ## 実行手順
@@ -41,7 +41,7 @@ type: user-invocable
 対象のレコードを取得する。
 
 ``bash
-awll_get "/api/v1/forms/{formId}/answers?limit=100"
+studio_get "/api/v1/forms/{formId}/answers?limit=100"
 ``
 
 ### Step 2: データ加工
@@ -53,7 +53,7 @@ awll_get "/api/v1/forms/{formId}/answers?limit=100"
 加工したデータを PATCH API で更新する。
 
 ``bash
-awll_patch "/api/v1/forms/{formId}/answers/{answerId}" @tmp/update.json
+studio_patch "/api/v1/forms/{formId}/answers/{answerId}" @tmp/update.json
 ``
 
 ## 注意事項
@@ -66,7 +66,7 @@ awll_patch "/api/v1/forms/{formId}/answers/{answerId}" @tmp/update.json
 
 ```markdown
 ---
-name: awll-api-rules
+name: studio-api-rules
 description: AWLL Studio API 操作時のルールを自動適用
 type: proactive
 match:
@@ -108,7 +108,7 @@ Step 5: 結果確認（GET で検証）
 
 - 504 Gateway Timeout → バックアップから復元可能。再試行 or DELETE→POST
 - 400 Bad Request → リクエストボディを確認（fieldCode, parentRowId 等）
-- 401 Unauthorized → `awll_login` で再認証
+- 401 Unauthorized → `studio_login` で再認証
 ```
 
 ### 3. 日本語データの扱い
@@ -139,7 +139,7 @@ curl -d @tmp/data.json ...
 
 ```
 .claude/skills/
-├── awll-api.md              # API操作ルール（proactive）
+├── studio-api.md              # API操作ルール（proactive）
 ├── your-domain/
 │   ├── create-report.md     # レポート作成スキル
 │   ├── update-status.md     # ステータス一括更新スキル

@@ -8,7 +8,7 @@
 # CLAUDE.md
 
 ## AWLL Studio API
-- 認証: `source awll-api.sh && awll_login`
+- 認証: `source studio-api.sh && studio_login`
 - APIドキュメント: https://docs.awll-studio.ai/raw/api-reference/quick-start.md
 - PUT禁止 → PATCH使用
 - サブレコード → Nodes API
@@ -237,7 +237,7 @@ tmp/                          # gitignore対象
 
 | 症状 | 原因 | 対処 |
 |------|------|------|
-| 401 Unauthorized | トークン失効（1時間） | `awll_login` で再認証 |
+| 401 Unauthorized | トークン失効（1時間） | `studio_login` で再認証 |
 | 403 Forbidden | 権限不足 | テナント管理者に権限付与を依頼 |
 | 400 Bad Request | リクエスト不正 | fieldCode/parentRowId/データ型を確認 |
 | 504 Gateway Timeout | 大量データPUT | DELETE→POST or Nodes API で分割更新 |
