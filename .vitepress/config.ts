@@ -15,6 +15,8 @@ export default defineConfig({
   // README.md → index.html にリライト（/api-reference/ 等のディレクトリアクセス対応）
   rewrites: {
     'api-reference/README.md': 'api-reference/index.md',
+    'api-reference/reference/form-generator/README.md': 'api-reference/reference/form-generator/index.md',
+    'playbook/README.md': 'playbook/index.md',
     'sdk/README.md': 'sdk/index.md',
   },
 
