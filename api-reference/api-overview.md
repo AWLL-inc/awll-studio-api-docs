@@ -92,6 +92,42 @@
 | POST | `/api/aggregates/min` | MIN |
 | POST | `/api/aggregates/group-by` | GROUP BY（グループ別集計） |
 
+### メール送信
+
+| Method | Path | 説明 |
+|--------|------|------|
+| POST | `/api/v1/mail/send` | メール送信（SES経由、ADMIN/DEVELOPER権限） |
+| GET | `/api/v1/mail/usage` | テナント月次メール使用量取得（ADMIN権限） |
+| GET | `/api/v1/mail/usage/all` | 全テナント月次メール使用量取得（SUPER_ADMIN権限） |
+
+### スクリプトルール（Admin）
+
+| Method | Path | 説明 |
+|--------|------|------|
+| POST | `/api/admin/script-rules` | ルール作成 |
+| GET | `/api/admin/script-rules` | ルール一覧取得 |
+| GET | `/api/admin/script-rules/{ruleId}` | ルール取得 |
+| PUT | `/api/admin/script-rules/{ruleId}` | ルール更新（楽観ロック） |
+| DELETE | `/api/admin/script-rules/{ruleId}` | ルール削除 |
+| POST | `/api/admin/script-rules/{ruleId}/execute` | テスト実行 |
+| POST | `/api/admin/script-rules/execute` | データベースルール一括実行 |
+| POST | `/api/admin/script-rules/test` | スクリプト検証 |
+| GET | `/api/admin/script-rules/{ruleId}/versions` | バージョン一覧 |
+| POST | `.../versions/{versionNumber}/publish` | バージョン公開 |
+| POST | `/api/admin/script-rules/{ruleId}/unpublish` | 非公開化 |
+| POST | `.../schedule/enable` | スケジュール有効化 |
+| POST | `.../schedule/disable` | スケジュール無効化 |
+| POST | `.../schedule/trigger` | 即時実行 |
+| GET | `.../schedule/state` | スケジュール状態取得 |
+| GET | `/api/admin/script-rules/{ruleId}/executions` | 実行履歴一覧 |
+| GET | `.../executions/{logId}` | 実行履歴詳細 |
+
+### ボタンクリックアクション
+
+| Method | Path | 説明 |
+|--------|------|------|
+| POST | `/api/v1/forms/{formId}/answers/{answerId}/actions/{actionId}` | ON_BUTTON_CLICKルール実行 |
+
 ### メニュー
 
 | Method | Path | 説明 |

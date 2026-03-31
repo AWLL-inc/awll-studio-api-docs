@@ -9,9 +9,7 @@
 
 - **ON_CREATE**: データベース回答が新規作成されたとき
 - **ON_UPDATE**: データベース回答が更新されたとき
-- **ON_CHANGE**: データベース回答のフィールドが変更されたとき（リアルタイム）
-- **ON_BUTTON_CLICK**: カスタムボタンがクリックされたとき
-- **SCHEDULED**: スケジュール実行（バッチ処理）
+- **ON_BUTTON_CLICK**: カスタムボタンがクリックされたとき（#1137）
 
 ## グローバル変数
 
@@ -62,24 +60,11 @@ record.last_modified_by = userId;
 
 ```javascript
 // イベントタイプ
-console.log('イベント:', context.event); // "ON_CREATE" | "ON_UPDATE" | "ON_CHANGE" | "ON_BUTTON_CLICK" | "SCHEDULED"
+console.log('イベント:', context.event); // "ON_CREATE" | "ON_UPDATE" | "ON_BUTTON_CLICK"
 
 // データベースID
 console.log('Form ID:', context.formId);
 ```
-
-### `context.field` (string, ON_CHANGEのみ)
-変更されたフィールド名
-
-```javascript
-if (context.event === 'ON_CHANGE') {
-  console.log('変更フィールド:', context.field);
-  console.log('変更後の値:', context.value);
-}
-```
-
-### `context.value` (any, ON_CHANGEのみ)
-変更後の値
 
 ### `context.actionId` (string, ON_BUTTON_CLICKのみ)
 クリックされたボタンのアクションID
@@ -137,7 +122,7 @@ API操作オブジェクト（詳細は後述）
 
 - `formId` (string, 必須): データベースID
 - `options` (object, オプション):
-  - `limit` (number): 取得件数（デフォルト: 100、1回最大: 100、累計最大: 1000）
+  - `limit` (number): 取得件数（デフォルト: 20、最大: 1000）
   - `nextToken` (string): ページネーショントークン
 
 #### 戻り値
@@ -335,7 +320,158 @@ if (record.status === 'cancelled') {
 
 ---
 
+### `api.sendEmail(options)`
+
+メールを送信します。テンプレート変数を使用して、件名・本文を動的に生成できます。
+
+#### パラメータ
+
+- `options` (object, 必須):
+  - `to` (string, 必須): 送信先メールアドレス
+  - `subject` (string, 必須): メール件名（テンプレート変数使用可）
+  - `body` (string, 必須): メール本文（テンプレート変数使用可）
+  - `templateVariables` (object, オプション): テンプレート変数（`{{key}}` → value に置換）
+
+#### 戻り値
+
+```javascript
+{
+  messageId: string,  // メッセージID（UUID）
+  status: string,     // "SENT" | "FAILED"
+  error: string|null  // エラーメッセージ（失敗時のみ）
+}
+```
+
+#### 使用例
+
+```javascript
+// 基本的な使用方法
+var result = api.sendEmail({
+  to: 'user@example.com',
+  subject: 'お知らせ',
+  body: '本文です。'
+});
+console.log('送信結果:', result.status);
+
+// テンプレート変数を使用
+var result = api.sendEmail({
+  to: record.email,
+  subject: record.customer_name + '様へのご連絡',
+  body: record.customer_name + '様' + String.fromCharCode(10)
+    + String.fromCharCode(10) + 'いつもお世話になっております。'
+});
+
+// エラーハンドリング
+var result = api.sendEmail({
+  to: record.contact_email,
+  subject: '注文確認',
+  body: '注文番号: ' + record.order_number
+});
+
+if (result.status === 'FAILED') {
+  console.error('メール送信失敗:', result.error);
+}
+```
+
+#### 注意事項
+
+- 送信元は `noreply@awll-studio.ai` 固定
+- スクリプト実行環境スクリプト内では `\n` リテラルが使えない場合があるため、改行は `String.fromCharCode(10)` を使用
+- 送信は同期実行（レスポンスを待つ）
+- 送信履歴は自動的に記録され、管理画面の使用量APIで確認可能
+
+---
+
 ## 実装パターン集
+
+### パターン6: ステータス変更時のメール通知
+
+```javascript
+// ON_UPDATE トリガー
+
+if (record.status !== oldRecord.status && record.status === 'approved') {
+  // 承認時にメール通知
+  var result = api.sendEmail({
+    to: record.applicant_email,
+    subject: '【承認完了】' + record.request_title,
+    body: record.applicant_name + '様' + String.fromCharCode(10)
+      + String.fromCharCode(10)
+      + 'ご申請いただいた「' + record.request_title + '」が承認されました。'
+      + String.fromCharCode(10)
+      + String.fromCharCode(10)
+      + '承認者: ' + userId
+      + String.fromCharCode(10)
+      + '承認日時: ' + new Date().toISOString()
+  });
+
+  if (result.status === 'FAILED') {
+    console.error('通知メール送信失敗:', result.error);
+  }
+}
+```
+
+### パターン7: テンプレート変数を使った通知メール
+
+```javascript
+// ON_CREATE トリガー
+
+var result = api.sendEmail({
+  to: record.email,
+  subject: '{{customer_name}}様 - ご登録ありがとうございます',
+  body: '{{customer_name}}様' + String.fromCharCode(10)
+    + String.fromCharCode(10)
+    + 'AWLL Studioへのご登録ありがとうございます。'
+    + String.fromCharCode(10)
+    + String.fromCharCode(10)
+    + '登録番号: {{registration_number}}'
+    + String.fromCharCode(10)
+    + '登録日: {{date}}',
+  templateVariables: {
+    customer_name: record.customer_name,
+    registration_number: record.id,
+    date: new Date().toLocaleDateString('ja-JP')
+  }
+});
+
+console.log('登録通知メール:', result.status, result.messageId);
+```
+
+### パターン8: 複数宛先への順次メール送信
+
+```javascript
+// ON_BUTTON_CLICK トリガー
+
+// 関連する担当者レコードを取得
+var members = api.getRecords('member_form').filter(function(m) {
+  return m.fields.team_id === record.team_id;
+});
+
+// 各メンバーにメール送信（API呼び出し上限10回に注意）
+var sentCount = 0;
+var failedCount = 0;
+
+members.forEach(function(member) {
+  if (!member.fields.email) return;
+
+  var result = api.sendEmail({
+    to: member.fields.email,
+    subject: '【連絡】' + record.subject,
+    body: member.fields.name + '様' + String.fromCharCode(10)
+      + String.fromCharCode(10) + record.message_body
+  });
+
+  if (result.status === 'SENT') {
+    sentCount++;
+  } else {
+    failedCount++;
+    console.error('送信失敗:', member.fields.email, result.error);
+  }
+});
+
+console.log('メール送信完了: 成功=' + sentCount + ', 失敗=' + failedCount);
+```
+
+> **注意**: `api.sendEmail()` を含むAPI呼び出しは1スクリプトあたり**最大10回**に制限されています。大量送信が必要な場合はREST API（`POST /api/v1/mail/send`）を使用してください。
 
 ### パターン1: 自動採番
 
@@ -597,7 +733,10 @@ inactiveCustomers.forEach(customer => {
 
 ### 1. コンソールログ確認
 
-管理画面の「実行ログ」からスクリプトの実行結果を確認できます。
+```bash
+# バックエンドログを確認
+サーバーログでスクリプト実行を確認
+```
 
 ### 2. スクリプト内でデバッグ出力
 

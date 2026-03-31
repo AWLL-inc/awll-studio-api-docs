@@ -160,9 +160,9 @@ const { data, refetch } = useRecords('customer_form');
 <button onClick={refetch}>更新</button>
 ```
 
-### Nodes API経由の更新とanswerDataの同期
+### ✅ Nodes API経由の更新とanswerDataの同期（で改善済み）
 
-`useRecords` / `useRecord` は `answerData` を読みます。自動同期実装により、Nodes API（`PUT /api/answers/{answerId}/nodes/{rowId}`）で
+`useRecords` / `useRecord` は `answerData` を読みます。 の自動同期実装により、Nodes API（`PUT /api/answers/{answerId}/nodes/{rowId}`）で
 サブテーブル行を更新すると、**answerData も自動同期されます**。
 
 `rebuild-index` の手動呼び出しは通常不要です。データ更新後は `refetch()` で最新データを再取得してください。
@@ -579,6 +579,21 @@ export default function CustomerListWithDelete() {
   );
 }
 ```
+
+---
+
+## メール送信について
+
+Screen SDK（React Hooks）にはメール送信用のフックは現在提供されていません。
+
+メール送信が必要な場合は、以下の方法を使用してください：
+
+| 方法 | 用途 |
+|------|------|
+| **Script SDK** `api.sendEmail()` | スクリプトルール内でのメール自動送信（ステータス変更時の通知等） |
+| **REST API** `POST /api/v1/mail/send` | カスタムアプリケーションからの送信（ADMIN/DEVELOPER権限が必要） |
+
+詳細は [Script SDK APIリファレンス - api.sendEmail()](./script-sdk-reference.md#apisendemaioptions) および [メール送信 API](../api-specs/openapi/public/reference/REST%20APIリファレンス/mail-api.md) を参照してください。
 
 ---
 
