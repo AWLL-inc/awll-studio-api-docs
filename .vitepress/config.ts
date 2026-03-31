@@ -59,18 +59,6 @@ export default defineConfig({
             { text: 'フィールド型・実用例', link: '/api-reference/reference/form-generator/' },
           ]
         },
-        {
-          text: '画面SDK (旧版)',
-          items: [
-            { text: '概要', link: '/api-reference/reference/画面SDK/' },
-            { text: 'データ構造仕様', link: '/api-reference/reference/画面SDK/data-structures' },
-            { text: '画面開発ガイド', link: '/api-reference/reference/画面SDK/screen-development' },
-            { text: 'Screen SDK Reference', link: '/api-reference/reference/画面SDK/screen-sdk-reference' },
-            { text: 'スクリプト開発ガイド', link: '/api-reference/reference/画面SDK/script-development' },
-            { text: 'Script SDK Reference', link: '/api-reference/reference/画面SDK/script-sdk-reference' },
-            { text: 'セキュリティベストプラクティス', link: '/api-reference/reference/画面SDK/security-best-practices' },
-          ]
-        },
       ],
       '/sdk/': [
         {
