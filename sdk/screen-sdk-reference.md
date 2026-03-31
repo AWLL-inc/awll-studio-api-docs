@@ -160,9 +160,9 @@ const { data, refetch } = useRecords('customer_form');
 <button onClick={refetch}>更新</button>
 ```
 
-### ✅ Nodes API経由の更新とanswerDataの同期（Issue #1325で改善済み）
+### Nodes API経由の更新とanswerDataの同期
 
-`useRecords` / `useRecord` は `answerData` を読みます。Issue #1325 の自動同期実装により、Nodes API（`PUT /api/answers/{answerId}/nodes/{rowId}`）で
+`useRecords` / `useRecord` は `answerData` を読みます。自動同期実装により、Nodes API（`PUT /api/answers/{answerId}/nodes/{rowId}`）で
 サブテーブル行を更新すると、**answerData も自動同期されます**。
 
 `rebuild-index` の手動呼び出しは通常不要です。データ更新後は `refetch()` で最新データを再取得してください。

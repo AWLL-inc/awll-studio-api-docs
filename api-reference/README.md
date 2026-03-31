@@ -153,5 +153,5 @@ AWLL Studio Platform の REST API 仕様ドキュメントです。
 ブラウザで直接 API ドキュメントを参照できます。
 
 ```
-https://api.awll-studio.ai/swagger-ui/index.html
+https://your-server/swagger-ui/index.html
 ```

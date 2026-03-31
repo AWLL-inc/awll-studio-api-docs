@@ -6,7 +6,7 @@
 ## 概要
 
 RecordGrid は Notion / GitHub Projects に倣ったミニマルなテーブルUIコンポーネントです。
-TanStack Table + TanStack Virtual ベースで、10万行規模のデータを仮想スクロールで表示できます。
+仮想スクロール対応テーブルコンポーネントをベースに、10万行規模のデータを仮想スクロールで表示できます。
 
 ## インポート方法
 

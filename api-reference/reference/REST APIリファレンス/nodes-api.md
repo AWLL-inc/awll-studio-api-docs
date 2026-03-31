@@ -25,9 +25,9 @@
 - 親ノードが持つ **ARRAY型フィールドのfieldCode** を指定します
 - 例: 親ノードに `tasks` (ARRAY) フィールドがある場合、`fieldCode: "tasks"`
 
-### 4. Nodes API の操作は answerData に自動同期される（Issue #1325）
+### 4. Nodes API の操作は answerData に自動同期される
 
-- Issue #1325 で answerData 自動同期が実装済み。ノードの**作成・削除・移動**時に `FormAnswer.answerData` が自動同期される
+- answerData 自動同期が実装済み。ノードの**作成・削除・移動**時に `FormAnswer.answerData` が自動同期される
 - PUT（ノード更新）時も answerData に自動反映される
 - したがって、Nodes API の操作結果はカスタム画面（Screen SDK の `useRecords` / `useRecord`）にも反映される
 - `rebuild-index` は不要（自動同期済み）。手動で `rebuild-index` を呼ぶことも可能だが、通常は不要
@@ -239,7 +239,7 @@ curl -s -X POST \
 
 子ノード作成後、関連する集計フィールドがあれば自動的に再計算されます。
 
-> **✅ answerData自動同期（Issue #1325）**: 作成後、`FormAnswer.answerData` は自動同期されます。
+> **answerData自動同期**: 作成後、`FormAnswer.answerData` は自動同期されます。
 > `rebuild-index` の手動呼び出しは通常不要です。
 
 ---
@@ -251,7 +251,7 @@ curl -s -X POST \
 > **⚠️ 全フィールド置換**: `data` に含まれないフィールドは消失します。
 > 変更するフィールドだけでなく、既存フィールドも全て含めて送信してください。
 >
-> **✅ answerData自動同期（Issue #1325）**: ノード更新後、`FormAnswer.answerData` は自動同期されます。
+> **answerData自動同期**: ノード更新後、`FormAnswer.answerData` は自動同期されます。
 > `rebuild-index` の手動呼び出しは通常不要です。
 
 ### リクエスト

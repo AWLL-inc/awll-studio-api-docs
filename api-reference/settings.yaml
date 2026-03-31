@@ -5,4 +5,4 @@ awll_studio:
   base_url: "https://api.awll-studio.ai"
   email: "ログインアドレスを入力"
   password: "ログインパスワードを入力"
-  tenant_code: "awll"
+  tenant_code: "your-tenant"

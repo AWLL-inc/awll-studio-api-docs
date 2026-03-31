@@ -67,7 +67,7 @@ curl -s -H "Authorization: Bearer $TOKEN" \
 ## Swagger UI
 
 ```
-https://api.awll-studio.ai/swagger-ui/index.html
+https://your-server/swagger-ui/index.html
 ```
 
 ## ライセンス

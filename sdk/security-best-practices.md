@@ -403,9 +403,7 @@ if (error) {
 1. **即座に管理者に報告**
 2. **影響範囲を特定**
 3. **ログを確認**
-   ```bash
-   docker compose logs -f backend | grep "ERROR\|WARN"
-   ```
+   サーバーログで `ERROR` / `WARN` を確認してください。
 4. **必要に応じてアクセスを一時停止**
 
 ---

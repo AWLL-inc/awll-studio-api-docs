@@ -101,10 +101,10 @@ interface FormDefinition {
 interface FormSchema {
   description?: string;     // データベースの説明文（FormBuilder UIの説明欄に表示）
   fields: FormField[];      // フィールド定義配列
-  actions?: FormAction[];   // カスタムアクション定義（#1137）
+  actions?: FormAction[];   // カスタムアクション定義
 }
 
-// カスタムアクション定義（#1137）
+// カスタムアクション定義
 interface FormAction {
   actionId: string;         // アクションID（スクリプトの actionId と対応）
   label: string;            // ボタン表示名

@@ -433,7 +433,7 @@ const context = useExecutionContext();
 **原因**: バックエンドAPIが応答していない
 
 **解決方法**:
-1. `docker compose logs -f backend` でログ確認
+1. サーバーログを確認
 2. ネットワーク接続確認
 3. ブラウザコンソールでエラー詳細確認
 

@@ -9,6 +9,9 @@ export default defineConfig({
     ['meta', { name: 'robots', content: 'noindex, nofollow' }],
   ],
 
+  // CLAUDE.md はAIエージェント向け内部ドキュメントのためビルドから除外
+  srcExclude: ['**/CLAUDE.md'],
+
   // 既存Markdownの相対リンク（ディレクトリ参照）がindex.mdを想定するためdead link扱いになる
   ignoreDeadLinks: true,
 
@@ -52,6 +55,7 @@ export default defineConfig({
             { text: 'ユーザー・権限 API', link: '/api-reference/reference/REST APIリファレンス/users-permissions-api' },
             { text: 'Webhook・メニュー API', link: '/api-reference/reference/REST APIリファレンス/webhooks-menus-api' },
             { text: '管理者専用 API', link: '/api-reference/reference/REST APIリファレンス/admin-api' },
+            { text: 'メール送信 API', link: '/api-reference/reference/REST APIリファレンス/mail-api' },
           ]
         },
         {

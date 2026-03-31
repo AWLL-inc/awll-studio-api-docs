@@ -26,7 +26,7 @@ import {
 | `useRecords(options)` | レコード一覧取得 | 実装済み |
 | `useRecord(options)` | 単一レコード取得 | 実装済み |
 | `useMutation()` | レコード作成/更新/削除 | 実装済み |
-| `useNavigation()` | 画面遷移 | 実装中（Issue #884） |
+| `useNavigation()` | 画面遷移 | 実装中 |
 | `useNodes(answerId)` | 階層データ（ノード）取得 | 未実装 |
 
 ---
@@ -171,7 +171,7 @@ const handleDelete = async (recordId) => {
 
 ### Nodes API経由の更新とanswerDataの同期
 
-`useRecords` / `useRecord` は `answerData` を読みます。Issue #1325 の自動同期実装により、Nodes API（`PUT /api/answers/{answerId}/nodes/{rowId}`）で
+`useRecords` / `useRecord` は `answerData` を読みます。自動同期実装により、Nodes API（`PUT /api/answers/{answerId}/nodes/{rowId}`）で
 サブテーブル行を更新すると、answerData も自動同期されます。`rebuild-index` の手動呼び出しは通常不要です。データ更新後は `refetch()` で最新データを再取得してください。
 
 ```tsx
@@ -469,7 +469,7 @@ export default function CustomerListWithDelete() {
 
 ## useNavigation()（実装中）
 
-画面遷移を実行します。Issue #884 で実装中。
+画面遷移を実行します。現在実装中です。
 
 ### 予定API
 

@@ -10,8 +10,8 @@
 - **ON_CREATE**: データベース回答が新規作成されたとき
 - **ON_UPDATE**: データベース回答が更新されたとき
 - **ON_CHANGE**: データベース回答のフィールドが変更されたとき（リアルタイム）
-- **ON_BUTTON_CLICK**: カスタムボタンがクリックされたとき（Issue #1137）
-- **SCHEDULED**: スケジュール実行（バッチ処理）（Epic #1299）
+- **ON_BUTTON_CLICK**: カスタムボタンがクリックされたとき
+- **SCHEDULED**: スケジュール実行（バッチ処理）
 
 ## グローバル変数
 
@@ -120,7 +120,7 @@ history.push({
 record.approval_history = history;
 ```
 
-> **注意**: `context.actionArgs?.comment` のオプショナルチェイニングは GraalVM で動作しない場合があります。`context.actionArgs && context.actionArgs.comment` の形式を使用してください。
+> **注意**: `context.actionArgs?.comment` のオプショナルチェイニングは スクリプト実行環境 で動作しない場合があります。`context.actionArgs && context.actionArgs.comment` の形式を使用してください。
 
 ### `api` (object)
 API操作オブジェクト（詳細は後述）
@@ -137,7 +137,7 @@ API操作オブジェクト（詳細は後述）
 
 - `formId` (string, 必須): フォームID
 - `options` (object, オプション):
-  - `limit` (number): 取得件数（デフォルト: 20、最大: 1000）
+  - `limit` (number): 取得件数（デフォルト: 100、1回最大: 100、累計最大: 1000）
   - `nextToken` (string): ページネーショントークン
 
 #### 戻り値
@@ -527,7 +527,7 @@ record.startDate = new Date().toISOString().split('T')[0];
 return { record: record };  // ← 正しく取得される
 ```
 
-**理由**: スクリプト実行エンジン（SecureJavaScriptExecutor）が自動的にコードをIIFEでラップするため、スクリプト側でIIFEを使用すると**二重IIFE**になり、内側の`return`が外側に伝わりません。
+**理由**: スクリプト実行エンジン（スクリプト実行エンジン）が自動的にコードをIIFEでラップするため、スクリプト側でIIFEを使用すると**二重IIFE**になり、内側の`return`が外側に伝わりません。
 
 ---
 
@@ -597,10 +597,7 @@ inactiveCustomers.forEach(customer => {
 
 ### 1. コンソールログ確認
 
-```bash
-# バックエンドログを確認
-docker compose logs -f backend | grep "ScriptExecution"
-```
+管理画面の「実行ログ」からスクリプトの実行結果を確認できます。
 
 ### 2. スクリプト内でデバッグ出力
 
