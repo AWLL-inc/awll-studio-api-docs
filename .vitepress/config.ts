@@ -52,7 +52,6 @@ export default defineConfig({
             { text: 'ユーザー・権限 API', link: '/api-reference/reference/REST APIリファレンス/users-permissions-api' },
             { text: 'Webhook・メニュー API', link: '/api-reference/reference/REST APIリファレンス/webhooks-menus-api' },
             { text: '管理者専用 API', link: '/api-reference/reference/REST APIリファレンス/admin-api' },
-            { text: '修正点一覧', link: '/api-reference/reference/REST APIリファレンス/corrections' },
           ]
         },
         {
