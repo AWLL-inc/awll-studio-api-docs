@@ -12,6 +12,12 @@ export default defineConfig({
   // 既存Markdownの相対リンク（ディレクトリ参照）がindex.mdを想定するためdead link扱いになる
   ignoreDeadLinks: true,
 
+  // README.md → index.html にリライト（/api-reference/ 等のディレクトリアクセス対応）
+  rewrites: {
+    'api-reference/README.md': 'api-reference/index.md',
+    'sdk/README.md': 'sdk/index.md',
+  },
+
   themeConfig: {
     nav: [
       { text: 'API Reference', link: '/api-reference/' },
