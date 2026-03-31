@@ -55,6 +55,7 @@ jobs:
         run: |
           aws s3 sync .vitepress/dist s3://$S3_BUCKET/ \
             --delete \
+            --exclude "raw/*" \
             --cache-control "public, max-age=3600"
 
       - name: Deploy raw Markdown to S3
