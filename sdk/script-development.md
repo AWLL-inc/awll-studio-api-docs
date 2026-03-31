@@ -77,7 +77,7 @@ record.action_logs = logs;
 console.log('アクション実行:', context.actionId, 'by', executedBy);
 ```
 
-> **注意**: スクリプト実行環境環境では `context.actionArgs?.comment` のオプショナルチェイニングが動作しない場合があります。`context.actionArgs && context.actionArgs.comment` の形式を使用してください。
+> **注意**: スクリプト実行環境では `context.actionArgs?.comment` のオプショナルチェイニングが動作しない場合があります。`context.actionArgs && context.actionArgs.comment` の形式を使用してください。
 
 ---
 
@@ -721,7 +721,7 @@ record.startDate = new Date().toISOString().split('T')[0];
 return { record: record };  // ← 正しく取得される
 ```
 
-**理由**: スクリプト実行エンジン（スクリプト実行エンジン）が自動的にコードをIIFEでラップするため、スクリプト側でIIFEを使用すると**二重IIFE**になり、内側の`return`が外側に伝わりません。
+**理由**: スクリプト実行エンジンが自動的にコードをIIFEでラップするため、スクリプト側でIIFEを使用すると**二重IIFE**になり、内側の`return`が外側に伝わりません。
 
 ## トラブルシューティング
 
