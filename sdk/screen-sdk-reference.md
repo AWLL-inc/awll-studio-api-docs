@@ -1,7 +1,7 @@
 # Screen SDK API Reference
 
 **対象**: AWLL Studio画面開発者
-**最終更新**: 2026-03-30
+**最終更新**: 2026-04-01
 
 ## インポート方法
 
@@ -68,9 +68,23 @@ export default function MyScreen() {
 
 ---
 
+## Hook選択ガイド — useRecords vs useRecord vs useNodes
+
+| Hook | 用途 | ARRAYフィールド（サブテーブル） |
+|------|------|-------------------------------|
+| `useRecords` | **一覧画面** — 検索・ページネーション | **含まれない**（Projection Table） |
+| `useRecord` | **詳細画面** — 単一レコード完全取得 | **含まれる**（answerData + Node enrichment） |
+| `useNodes` | **サブテーブル直接操作** — depth/filter制御 | **含まれる**（Node Table） |
+
+> ⚠️ **重要**: 詳細画面で `useRecords` を使ってクライアント側フィルタするパターンは、ARRAYデータが欠落するため**アンチパターン**です。必ず `useRecord` を使用してください。
+
+---
+
 ## useRecords()
 
 データベースレコード一覧を取得します（ページネーション対応）。
+
+> ⚠️ **注意**: Projection Table（検索用）からデータを返すため、**ARRAYフィールド（サブテーブル）のデータは含まれません**。サブテーブルを含む完全データが必要な場合は `useRecord()` を使用してください。
 
 ### シグネチャ
 
@@ -261,7 +275,7 @@ export default function PaginatedList() {
 
 ## useRecord()
 
-単一レコードを取得します。
+単一レコードの**完全データ**を取得します。`useRecords` と異なり、ARRAYフィールド（サブテーブル）のデータも含まれます。
 
 ### シグネチャ
 

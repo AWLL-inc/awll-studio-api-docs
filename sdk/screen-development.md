@@ -2,7 +2,7 @@
 
 **対象**: AWLL Studioプラットフォームで画面を開発する開発者
 **難易度**: 初級〜中級
-**最終更新**: 2026-02-04
+**最終更新**: 2026-04-01
 
 ## 概要
 
@@ -128,6 +128,9 @@ export default function PaginatedCustomerList() {
 
 ### パターン3: 単一レコード詳細表示
 
+> ⚠️ **重要**: 詳細画面では**必ず `useRecord` を使用**してください。
+> `useRecords` で全件取得→クライアント側フィルタするパターンは、ARRAYフィールド（サブテーブル）のデータが含まれないため正しく動作しません。
+
 ```tsx
 import React from 'react';
 import { useRecord, useExecutionContext } from '@awll/sdk';
@@ -136,6 +139,7 @@ export default function CustomerDetail() {
   const context = useExecutionContext();
   const customerId = context.params.customerId; // URLパラメータから取得
 
+  // ✅ useRecord で単一レコード取得（ARRAYデータ含む完全データ）
   const { data: customer, isLoading } = useRecord('customer_form', customerId);
 
   if (isLoading) return <div>読み込み中...</div>;
@@ -157,6 +161,18 @@ export default function CustomerDetail() {
         <dt>作成日時</dt>
         <dd>{new Date(customer.metadata.createdAt).toLocaleString('ja-JP')}</dd>
       </dl>
+
+      {/* ARRAYフィールド（サブテーブル）も表示可能 */}
+      {customer.values.orders && (
+        <div>
+          <h2>注文履歴</h2>
+          <ul>
+            {customer.values.orders.map((order, i) => (
+              <li key={order.__rowId || i}>{order.product_name} - {order.amount}円</li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
@@ -879,7 +895,7 @@ const context = useExecutionContext();
 **原因**: バックエンドAPIが応答していない
 
 **解決方法**:
-1. サーバーログを確認
+1. `docker compose logs -f backend` でログ確認
 2. ネットワーク接続確認
 3. ブラウザコンソールでエラー詳細確認
 
