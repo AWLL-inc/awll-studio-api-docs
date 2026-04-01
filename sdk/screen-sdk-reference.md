@@ -1,7 +1,7 @@
 # Screen SDK API Reference
 
 **対象**: AWLL Studio画面開発者
-**最終更新**: 2026-02-15
+**最終更新**: 2026-03-30
 
 ## インポート方法
 
@@ -11,6 +11,8 @@ import {
   useRecords,
   useRecord,
   useMutation,
+  useNodes,
+  useNodeMutation,
 } from '@awll/sdk';
 ```
 
@@ -160,9 +162,9 @@ const { data, refetch } = useRecords('customer_form');
 <button onClick={refetch}>更新</button>
 ```
 
-### ✅ Nodes API経由の更新とanswerDataの同期（で改善済み）
+### ✅ Nodes API経由の更新とanswerDataの同期（Issue #1325で改善済み）
 
-`useRecords` / `useRecord` は `answerData` を読みます。 の自動同期実装により、Nodes API（`PUT /api/answers/{answerId}/nodes/{rowId}`）で
+`useRecords` / `useRecord` は `answerData` を読みます。Issue #1325 の自動同期実装により、Nodes API（`PUT /api/answers/{answerId}/nodes/{rowId}`）で
 サブテーブル行を更新すると、**answerData も自動同期されます**。
 
 `rebuild-index` の手動呼び出しは通常不要です。データ更新後は `refetch()` で最新データを再取得してください。
@@ -681,6 +683,244 @@ const RecordRow = React.memo(({ record }) => (
 const handlePageChange = React.useCallback((newPage) => {
   setPage(newPage);
 }, [setPage]);
+```
+
+---
+
+## useNodes()
+
+サブテーブル（ノード）のデータを取得するフック。depth/parentRowId/fieldCodeでフィルタ可能。
+
+### シグネチャ
+
+```typescript
+function useNodes(options: UseNodesOptions): UseNodesResult
+```
+
+### UseNodesOptions
+
+| パラメータ | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| `answerId` | `string` | Yes | レコードID |
+| `depth` | `number` | No | 階層の深さ（0=ルート, 1=サブテーブル, 2=サブサブテーブル） |
+| `parentRowId` | `string` | No | 親ノードのrowId（直接の子のみ取得） |
+| `fieldCode` | `string` | No | フィールドコードでフィルタ |
+| `limit` | `number` | No | 取得件数上限（デフォルト100、最大1000） |
+| `offset` | `number` | No | オフセット（デフォルト0） |
+| `enabled` | `boolean` | No | フック有効/無効（デフォルトtrue） |
+
+### UseNodesResult
+
+| プロパティ | 型 | 説明 |
+|-----------|-----|------|
+| `data` | `NodeItem[]` | ノードデータ配列 |
+| `totalCount` | `number` | フィルタ後の総件数 |
+| `isLoading` | `boolean` | 初回読み込み中 |
+| `isFetching` | `boolean` | 再取得中 |
+| `error` | `AwllError \| null` | エラー情報 |
+| `refetch` | `() => void` | 手動再取得 |
+
+### NodeItem
+
+```typescript
+interface NodeItem {
+  rowId: string;           // ノードの一意ID
+  parentRowId: string | null; // 親ノードのrowId（ルートはnull）
+  answerRef: string;       // 所属するレコードID
+  fieldCode: string | null; // ARRAYフィールドのコード
+  depth: number;           // 階層の深さ（0=ルート）
+  ancestorPath: string;    // 祖先パス
+  data: Record<string, unknown>; // ノードデータ
+}
+```
+
+### 使用例
+
+```tsx
+// 全ノード取得
+const { data } = useNodes({ answerId: 'answer-123' });
+
+// depth=1のサブテーブル行のみ
+const { data } = useNodes({ answerId: 'answer-123', depth: 1 });
+
+// 特定の親の直接の子のみ
+const { data } = useNodes({ answerId: 'answer-123', parentRowId: 'row-456' });
+
+// フィールドコード + ページネーション
+const { data, totalCount } = useNodes({
+  answerId: 'answer-123',
+  fieldCode: 'tasks',
+  limit: 20,
+  offset: 0,
+});
+```
+
+---
+
+## useNodeMutation()
+
+サブテーブル（ノード）の作成・更新・削除フック。
+
+> ⚠️ `useMutation` は**ルートレコード専用**です。サブテーブル行の操作には `useNodeMutation` を使用してください。
+
+### シグネチャ
+
+```typescript
+function useNodeMutation(): UseNodeMutationResult
+```
+
+### UseNodeMutationResult
+
+| プロパティ | 型 | 説明 |
+|-----------|-----|------|
+| `createNode` | `(answerId, options) => Promise<NodeItem>` | ノード行追加 |
+| `createResult` | `{ isLoading, error }` | 作成操作の状態 |
+| `updateNode` | `(answerId, rowId, options) => Promise<NodeItem>` | ノード行更新 |
+| `updateResult` | `{ isLoading, error }` | 更新操作の状態 |
+| `deleteNode` | `(answerId, rowId) => Promise<void>` | ノード行削除 |
+| `deleteResult` | `{ isLoading, error }` | 削除操作の状態 |
+| `reset` | `() => void` | 全状態リセット |
+
+### createNode オプション
+
+| パラメータ | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| `parentRowId` | `string` | Yes | 親ノードのrowId |
+| `fieldCode` | `string` | Yes | ARRAYフィールドのコード |
+| `data` | `Record<string, unknown>` | Yes | ノードデータ |
+
+### updateNode オプション
+
+| パラメータ | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| `data` | `Record<string, unknown>` | Yes | ノードデータ（**全フィールド置換**） |
+
+### 使用例
+
+```tsx
+const { createNode, updateNode, deleteNode } = useNodeMutation();
+
+// 作成
+const newNode = await createNode(answerId, {
+  parentRowId: rootNodeId,
+  fieldCode: 'tasks',
+  data: { task_name: '新タスク', status: 'todo' },
+});
+
+// 更新（⚠️ 全フィールド置換 — 省略したフィールドは消失）
+await updateNode(answerId, rowId, {
+  data: { task_name: '更新済み', status: 'done' },
+});
+
+// 削除（⚠️ CASCADE — 子ノードも全削除）
+await deleteNode(answerId, rowId);
+```
+
+### 注意事項
+
+1. **全フィールド置換**: `updateNode` は `data` に含まれないフィールドを削除します。必ず全フィールドを送信してください。
+2. **CASCADE削除**: `deleteNode` は子孫ノードも全て削除します。
+3. **手動refetch**: 操作後は `useNodes` の `refetch()` を呼んで最新データを反映してください。
+4. **useMutationとの使い分け**:
+   - `useMutation` → ルートレコード（FormAnswer）のCRUD
+   - `useNodeMutation` → サブテーブル行（Node）のCRUD
+
+---
+
+## サブテーブル（ARRAY型）データ取得のベストプラクティス
+
+### 重要: useRecords はサブテーブルの完全なデータを保証しない
+
+`useRecords`（一覧API）が返す `values` のサブテーブルフィールドは、レコードによって**データが不完全な場合がある**:
+
+| レコード | values.tasks の中身 |
+|---------|-------------------|
+| レコードA | 全タスクデータあり（展開済み） |
+| レコードB | `[{__rowId: "..."}, {__rowId: "..."}]` — **rowIdのみ** |
+
+これは一覧APIの `searchableFields` がサブテーブルデータを部分的にしか含めていないためです。
+
+### 一覧画面 vs 詳細画面の使い分け
+
+| 画面 | レコード取得 | サブテーブル取得 |
+|------|------------|----------------|
+| **一覧画面** | `useRecords` | `values.tasks.length` で概算（パフォーマンス優先） |
+| **詳細画面** | `useRecord(formId, recordId)` | **`useNodes({ answerId, depth: 1, fieldCode })` を必ず使う** |
+
+### 詳細画面でのサブテーブル取得パターン
+
+```tsx
+import { useExecutionContext, useRecord, useNodes } from '@awll/sdk';
+
+export default function DetailScreen() {
+  const ctx = useExecutionContext();
+  const recordId = ctx?.params?.recordId;
+
+  // ルートフィールド（name, due_date等）
+  const { data: record, isLoading } = useRecord({
+    formId: 'YOUR_FORM_ID',
+    recordId,
+  });
+
+  // サブテーブル（タスク等）— Node APIで確実に全データ取得
+  const { data: tasks, isLoading: tasksLoading } = useNodes({
+    answerId: recordId,
+    depth: 1,              // サブテーブル行のみ（サブサブテーブルは含まない）
+    fieldCode: 'tasks',    // 特定のARRAYフィールドのみ取得
+    enabled: !!recordId,
+  });
+
+  // tasks の各ノードのデータは node.data.フィールド名 でアクセス
+  // 例: node.data.name, node.data.assignee, node.data.due_date
+}
+```
+
+### useNodes が返すノードの構造
+
+```typescript
+interface NodeItem {
+  rowId: string;          // ノードID
+  parentRowId: string;    // 親ノードID（ルート行は "ROOT"）
+  answerRef: string;      // レコードID（answerId）
+  fieldCode: string;      // サブテーブルのフィールドコード（例: "tasks"）
+  depth: number;          // 階層レベル（1=サブテーブル行, 2=サブサブテーブル行）
+  data: Record<string, unknown>;  // フィールド値
+}
+```
+
+**注意**: フィールド値は `node.data.フィールド名` でアクセスします（`node.フィールド名` ではありません）。
+
+### アンチパターン
+
+```tsx
+// ❌ BAD: useRecords で全件取得してfindで検索（サブテーブルデータが不完全）
+const { data } = useRecords({ formId: FORM_ID, pagination: { pageSize: 50 } });
+const record = data?.find(r => r.recordId === targetId);
+const tasks = record?.values?.tasks; // ← __rowId のみの場合がある
+
+// ❌ BAD: useRecords の values.tasks を信頼してタスク詳細を表示
+tasks.map(t => <div>{t.name}</div>); // ← t が {__rowId: "..."} のみの場合クラッシュ
+
+// ✅ GOOD: useRecord + useNodes で確実に取得
+const { data: record } = useRecord({ formId: FORM_ID, recordId: targetId });
+const { data: tasks } = useNodes({ answerId: targetId, depth: 1, fieldCode: 'tasks' });
+tasks.map(node => <div>{node.data.name}</div>); // ← 常に完全なデータ
+```
+
+### サブサブテーブル（3階層目）の取得
+
+サブテーブルの中にさらにサブテーブルがある場合（例: タスク → サブタスク）:
+
+```tsx
+// タスク（depth=1）を取得
+const { data: tasks } = useNodes({ answerId: recordId, depth: 1, fieldCode: 'tasks' });
+
+// 特定タスクのサブタスク（depth=2, 親ノード指定）を取得
+const { data: subtasks } = useNodes({
+  answerId: recordId,
+  parentRowId: selectedTaskRowId,  // 親タスクのrowId
+  enabled: !!selectedTaskRowId,
+});
 ```
 
 ---
