@@ -2,6 +2,7 @@
   "name": "awll-studio-api-docs",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@9.15.4",
   "scripts": {
     "dev": "vitepress dev",
     "build": "vitepress build",
