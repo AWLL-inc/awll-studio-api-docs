@@ -925,6 +925,39 @@ const { data: subtasks } = useNodes({
 
 ---
 
+## 画面デプロイ手順（publish / compile / deploy の違い）
+
+画面コードを修正した後、ビジネスユーザーに反映するには**3つの独立した操作**を理解する必要があります。
+
+### 操作の違い
+
+| 操作 | やること | ビジネスユーザーへの反映 |
+|------|---------|:--:|
+| **publishScreen** | DynamoDBのステータスをPUBLISHEDに変更するだけ | ❌ 反映されない |
+| **compileScreen** | TSX/JSXをesbuildでIIFEバンドルに変換 → compiledCodeをDynamoDBに保存 | ❌ 反映されない |
+| **deployScreen** | compiledCodeをS3にアップロード → CloudFrontキャッシュ無効化 → 内部でpublishも実行 | ✅ 反映される |
+
+### 必須手順
+
+```
+1. コード編集 (saveScreenFile / updateScreen)
+2. compileScreen ← コンパイル必須（スキップ不可）
+3. deployScreen  ← S3アップロード + CloudFront無効化 + 自動publish
+4. ビジネスユーザーがCDN経由でアクセス可能
+```
+
+**publishScreenは省略可能** — deployScreenが内部でpublishを実行するため。
+
+### よくある間違い
+
+| やりがちなこと | 結果 | 正しい手順 |
+|--------------|------|-----------|
+| publishScreenだけ実行 | ビジネスユーザーに反映されない | compileScreen → deployScreen |
+| コード修正後にdeployScreenだけ実行 | 古いcompiledCodeがデプロイされる | compileScreen → deployScreen |
+| compileScreenだけ実行 | DynamoDBにのみ保存、S3未反映 | compileScreen → deployScreen |
+
+---
+
 ## 参考資料
 
 - [Screen Development](./screen-development.md)
