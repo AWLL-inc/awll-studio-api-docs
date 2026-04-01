@@ -405,6 +405,26 @@ interface DeleteInput {
 }
 ```
 
+### ⚠️ update は PUT（全体置換）
+
+`useMutation('update')` は内部で **PUT（全体置換）** を実行します。
+`answerData` に送信しなかったフィールドは **消失** します。必須フィールドが欠落すると 400 Bad Request になります。
+
+```tsx
+// ❌ 変更フィールドだけ → 他フィールド消失 + 400エラー
+await updateMutation.mutate({ formId, recordId, answerData: { status: 'completed' } });
+
+// ✅ 既存値をスプレッドして変更箇所を上書き
+const currentValues = record.values;
+await updateMutation.mutate({
+  formId, recordId,
+  answerData: { ...currentValues, status: 'completed' },
+});
+```
+
+> **PATCH APIについて**: `PATCH /api/v1/forms/{formId}/answers/{id}` は部分更新に対応していますが、
+> `If-Match` ヘッダー（楽観的排他制御）が必須であり、iframe SDKブリッジの `postMessage` 経由ではカスタムヘッダーを送信できないため、画面コードからは利用できません。
+
 ### 参考: フロントエンド本体コードでの戻り値
 
 ```typescript
