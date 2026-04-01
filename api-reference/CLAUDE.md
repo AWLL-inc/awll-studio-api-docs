@@ -173,7 +173,9 @@ Nodes API（`POST /api/answers/{answerId}/nodes`）は以下の場合に使用:
 ## 画面(Screen)作成時の注意
 
 - `POST /api/v1/screens` でソースコードをアップロード可能
-- ただし**コンパイル・デプロイはUI上でのみ可能**(API経由のコンパイルは不可)
+- コンパイル: `POST /api/v1/screens/{screenId}/compile` でソースコードをコンパイル
+- デプロイ: `POST /api/v1/screens/{screenId}/deploy` でCDNにデプロイ
+- ロールバック: `POST /api/v1/screens/{screenId}/rollback` で指定バージョンに戻す
 - ソースコードは `export default function ScreenName() { ... }` 形式
 - SDK import: `import { useRecords, useRecord, useMutation, useExecutionContext } from '@awll/sdk';`
 - iframe内で実行されるため `fetch()` での直接API呼び出しはCSPでブロックされる
