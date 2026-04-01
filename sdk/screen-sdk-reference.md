@@ -70,13 +70,13 @@ export default function MyScreen() {
 
 ## Hook選択ガイド — useRecords vs useRecord vs useNodes
 
-| Hook | 用途 | ARRAYフィールド（サブテーブル） |
-|------|------|-------------------------------|
-| `useRecords` | **一覧画面** — 検索・ページネーション | **含まれない**（Projection Table） |
-| `useRecord` | **詳細画面** — 単一レコード完全取得 | **含まれる**（answerData + Node enrichment） |
-| `useNodes` | **サブテーブル直接操作** — depth/filter制御 | **含まれる**（Node Table） |
+| Hook / API | 用途 | ARRAYフィールド（サブテーブル） |
+|------------|------|-------------------------------|
+| `useRecords` | **一覧画面** — 検索・ページネーション | **参照のみ**（`[{__rowId}]`、Projection Table） |
+| `useRecord` | **詳細画面（ルートフィールド）** | **不完全** — `__rowId` 参照のみの場合あり |
+| `useNodes` | **サブテーブル取得** ✅ 推奨 | **全階層の完全データ**（Node Table） |
 
-> ⚠️ **重要**: 詳細画面で `useRecords` を使ってクライアント側フィルタするパターンは、ARRAYデータが欠落するため**アンチパターン**です。必ず `useRecord` を使用してください。
+> ⚠️ **重要**: `useRecords` / `useRecord` はARRAYフィールドの完全データを**保証しません**。サブテーブルを表示する詳細画面では、必ず **`useNodes`** を併用してください。
 
 ---
 
@@ -275,7 +275,9 @@ export default function PaginatedList() {
 
 ## useRecord()
 
-単一レコードの**完全データ**を取得します。`useRecords` と異なり、ARRAYフィールド（サブテーブル）のデータも含まれます。
+単一レコードのルートフィールドを取得します。
+
+> **注意**: ARRAYフィールド（サブテーブル）の中身は `__rowId` 参照のみの場合があります。サブテーブルの完全データが必要な場合は `useNodes` を併用してください。
 
 ### シグネチャ
 

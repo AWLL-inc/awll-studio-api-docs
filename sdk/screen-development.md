@@ -128,21 +128,28 @@ export default function PaginatedCustomerList() {
 
 ### パターン3: 単一レコード詳細表示
 
-> ⚠️ **重要**: 詳細画面では**必ず `useRecord` を使用**してください。
-> `useRecords` で全件取得→クライアント側フィルタするパターンは、ARRAYフィールド（サブテーブル）のデータが含まれないため正しく動作しません。
+> ⚠️ **重要**: `useRecords` / `useRecord` はARRAYフィールド（サブテーブル）の完全データを**保証しません**。サブテーブルを表示する場合は `useNodes` を併用してください。
 
 ```tsx
 import React from 'react';
-import { useRecord, useExecutionContext } from '@awll/sdk';
+import { useRecord, useNodes, useExecutionContext } from '@awll/sdk';
 
 export default function CustomerDetail() {
   const context = useExecutionContext();
-  const customerId = context.params.customerId; // URLパラメータから取得
+  const customerId = context.params.customerId;
 
-  // ✅ useRecord で単一レコード取得（ARRAYデータ含む完全データ）
+  // ルートフィールド取得
   const { data: customer, isLoading } = useRecord('customer_form', customerId);
 
-  if (isLoading) return <div>読み込み中...</div>;
+  // サブテーブル（注文履歴）取得
+  const { data: nodes, isLoading: nodesLoading } = useNodes({
+    answerId: customerId,
+    fieldCode: 'orders',
+    depth: 1,
+    enabled: !!customerId,
+  });
+
+  if (isLoading || nodesLoading) return <div>読み込み中...</div>;
   if (!customer) return <div>顧客が見つかりません</div>;
 
   return (
@@ -151,24 +158,21 @@ export default function CustomerDetail() {
       <dl>
         <dt>顧客名</dt>
         <dd>{customer.values.customer_name}</dd>
-
         <dt>メールアドレス</dt>
         <dd>{customer.values.email}</dd>
-
         <dt>電話番号</dt>
         <dd>{customer.values.phone}</dd>
-
         <dt>作成日時</dt>
         <dd>{new Date(customer.metadata.createdAt).toLocaleString('ja-JP')}</dd>
       </dl>
 
-      {/* ARRAYフィールド（サブテーブル）も表示可能 */}
-      {customer.values.orders && (
+      {/* サブテーブル（useNodesで取得） */}
+      {nodes && nodes.length > 0 && (
         <div>
-          <h2>注文履歴</h2>
+          <h2>注文履歴 ({nodes.length}件)</h2>
           <ul>
-            {customer.values.orders.map((order, i) => (
-              <li key={order.__rowId || i}>{order.product_name} - {order.amount}円</li>
+            {nodes.map(node => (
+              <li key={node.rowId}>{node.data.product_name} - {node.data.amount}円</li>
             ))}
           </ul>
         </div>
