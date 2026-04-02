@@ -1,15 +1,43 @@
 # Script SDK API Reference
 
 **対象**: AWLL Studioスクリプト開発者
-**最終更新**: 2026-03-18
+**最終更新**: 2026-04-02
 
 ## スクリプト実行環境
+
+**エンジン**: GraalVM Polyglot（ECMAScript 2021、Strict mode）
 
 スクリプトは以下のタイミングで実行されます：
 
 - **ON_CREATE**: データベース回答が新規作成されたとき
 - **ON_UPDATE**: データベース回答が更新されたとき
+- **ON_CHANGE**: フィールド値が変更されたとき（リアルタイム）
 - **ON_BUTTON_CLICK**: カスタムボタンがクリックされたとき（#1137）
+- **SCHEDULED**: Cron式または固定間隔でスケジュール実行（Epic #1299）
+
+### 実行環境の制約
+
+| 制約 | 値 |
+|------|-----|
+| メモリ上限 | 100MB |
+| 実行時間上限 | 30秒 |
+| ステートメント数上限 | 100,000 |
+| スタック深度上限 | 100 |
+| API呼び出し上限 | 10回/スクリプト |
+| レコード取得上限 | 100件/回、1,000件/総計 |
+
+### ブロックされている機能
+
+以下の機能はセキュリティ上の理由で**使用不可**です：
+
+- `eval`, `Function`（動的コード実行）
+- `setTimeout`, `setInterval`（非同期処理）
+- `require`, `process`, `global`, `globalThis`
+- `fetch`, `XMLHttpRequest`（外部HTTP通信）
+- `Java.type`（ホスト言語ブリッジ）
+- ファイルI/O、ネイティブアクセス、環境変数アクセス
+
+> **外部通知が必要な場合**: スクリプトから直接外部HTTPリクエストは送信できません。外部連携（Slack通知等）が必要な場合は、Webhook機能（`POST /api/v1/webhooks`）+ 中間サーバー（AWS Lambda等）を使用してください。メール通知のみ `api.sendEmail()` で直接送信可能です。
 
 ## グローバル変数
 
@@ -80,9 +108,31 @@ if (context.event === 'ON_BUTTON_CLICK') {
 
 ```javascript
 if (context.event === 'ON_BUTTON_CLICK') {
-  const comment = context.actionArgs?.comment;
+  const comment = context.actionArgs && context.actionArgs.comment;
   console.log('コメント:', comment);
 }
+```
+
+### `context.field` (string, ON_CHANGEのみ)
+変更されたフィールドのフィールドコード
+
+```javascript
+if (context.event === 'ON_CHANGE') {
+  console.log('変更フィールド:', context.field);
+  console.log('変更後の値:', context.value);
+}
+```
+
+### `context.value` (any, ON_CHANGEのみ)
+変更後の値
+
+### `context.user` (object)
+実行ユーザーの詳細情報
+
+```javascript
+console.log('ユーザーID:', context.user.id);
+console.log('メール:', context.user.email);
+console.log('名前:', context.user.name);
 ```
 
 ### サブテーブル（ARRAYフィールド）の操作
@@ -105,7 +155,7 @@ history.push({
 record.approval_history = history;
 ```
 
-> **注意**: `context.actionArgs?.comment` のオプショナルチェイニングは スクリプト実行環境 で動作しない場合があります。`context.actionArgs && context.actionArgs.comment` の形式を使用してください。
+> **注意**: `context.actionArgs?.comment` のオプショナルチェイニングは GraalVM で動作しない場合があります。`context.actionArgs && context.actionArgs.comment` の形式を使用してください。
 
 ### `api` (object)
 API操作オブジェクト（詳細は後述）
@@ -322,7 +372,7 @@ if (record.status === 'cancelled') {
 
 ### `api.sendEmail(options)`
 
-メールを送信します。テンプレート変数を使用して、件名・本文を動的に生成できます。
+メールを送信します（Issue #948）。テンプレート変数を使用して、件名・本文を動的に生成できます。
 
 #### パラメータ
 
@@ -376,7 +426,7 @@ if (result.status === 'FAILED') {
 #### 注意事項
 
 - 送信元は `noreply@awll-studio.ai` 固定
-- スクリプト実行環境スクリプト内では `\n` リテラルが使えない場合があるため、改行は `String.fromCharCode(10)` を使用
+- GraalVMスクリプト内では `\n` リテラルが使えない場合があるため、改行は `String.fromCharCode(10)` を使用
 - 送信は同期実行（レスポンスを待つ）
 - 送信履歴は自動的に記録され、管理画面の使用量APIで確認可能
 
@@ -663,7 +713,7 @@ record.startDate = new Date().toISOString().split('T')[0];
 return { record: record };  // ← 正しく取得される
 ```
 
-**理由**: スクリプト実行エンジンが自動的にコードをIIFEでラップするため、スクリプト側でIIFEを使用すると**二重IIFE**になり、内側の`return`が外側に伝わりません。
+**理由**: スクリプト実行エンジン（SecureJavaScriptExecutor）が自動的にコードをIIFEでラップするため、スクリプト側でIIFEを使用すると**二重IIFE**になり、内側の`return`が外側に伝わりません。
 
 ---
 
@@ -735,7 +785,7 @@ inactiveCustomers.forEach(customer => {
 
 ```bash
 # バックエンドログを確認
-サーバーログでスクリプト実行を確認
+docker compose logs -f backend | grep "ScriptExecution"
 ```
 
 ### 2. スクリプト内でデバッグ出力
