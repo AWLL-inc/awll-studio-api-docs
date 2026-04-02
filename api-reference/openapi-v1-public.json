@@ -4670,13 +4670,22 @@
           {
             "name": "limit",
             "in": "query",
-            "description": "取得件数上限（デフォルト100、最大100）",
+            "description": "取得件数上限（デフォルト100、最大1000）",
             "required": false,
             "schema": {
               "type": "integer",
               "format": "int32"
             },
             "example": 100
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "description": "検索キーワード（部分一致）",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
