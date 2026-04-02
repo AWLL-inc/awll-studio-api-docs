@@ -29,14 +29,14 @@
 #### 回避策
 
 1. **DELETE → POST で再作成**: answerIdは変わるが確実にanswerDataに反映される
-2. **Nodes API で個別ノードを更新**: 特定のサブレコードだけ更新可能。answerData にも自動同期される
+2. **Nodes API で個別ノードを更新**: 特定のサブレコードだけ更新可能。Issue #1325 により answerData にも自動同期される
 3. **UI手動更新**: AWLL Studio画面からの更新は確実に反映される
 
 #### ARRAY データの更新ルール
 
 - POST（新規作成）: `answerData` にARRAYデータを含めて送信すればanswerDataとノード両方に反映される
 - PUT（全体更新）: 同上だが、データ量が大きい場合504のリスクあり
-- Nodes API PUT: 自動同期実装により、answerData にも自動反映される。通常は `rebuild-index` の手動呼び出しは不要
+- Nodes API PUT: Issue #1325 の自動同期実装により、answerData にも自動反映される。通常は `rebuild-index` の手動呼び出しは不要
 
 ---
 
@@ -46,13 +46,44 @@
 
 ### クエリパラメータ
 
+#### 基本パラメータ（nextToken方式）
+
 | パラメータ | 型 | デフォルト | 説明 |
 |-----------|-----|-----------|------|
 | `limit` | integer | 20 | 取得件数（1〜1000） |
-| `nextToken` | string | - | ページネーショントークン |
+| `nextToken` | string | - | ページネーショントークン（次ページ取得用） |
 | `search` | string | - | 検索キーワード（部分一致、最大200文字） |
 
 > **注意**: 取得件数のパラメータ名は `limit` です（`pageSize` ではありません）。`pageSize` を指定しても無視され、デフォルトの20件が返ります。
+
+#### 拡張パラメータ（offset方式 — `offset` 指定時に有効）
+
+`offset` パラメータを指定すると、nextToken方式ではなくoffset-based paginationが使用されます。
+
+| パラメータ | 型 | デフォルト | 説明 |
+|-----------|-----|-----------|------|
+| `offset` | integer | - | オフセット（0始まり） |
+| `sortField` | string | - | ソートフィールド（`fieldCode` または `createdAt` / `updatedAt`） |
+| `sortOrder` | string | - | ソート順（`asc` / `desc`） |
+| `filters` | string (JSON) | - | フィルター条件（JSON配列文字列） |
+
+#### ページネーション例
+
+```bash
+# 1ページ目（50件取得）
+GET /api/v1/forms/{formId}/answers?limit=50
+
+# 2ページ目（nextTokenで続きを取得）
+GET /api/v1/forms/{formId}/answers?limit=50&nextToken={前回のnextToken}
+
+# 全件取得: nextToken が null になるまでループ
+```
+
+```bash
+# offset方式（ソート・フィルター付き）
+GET /api/v1/forms/{formId}/answers?limit=50&offset=0&sortField=createdAt&sortOrder=desc
+GET /api/v1/forms/{formId}/answers?limit=50&offset=50&sortField=createdAt&sortOrder=desc
+```
 
 ### レスポンス (200)
 
