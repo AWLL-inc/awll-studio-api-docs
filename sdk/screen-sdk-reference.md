@@ -405,21 +405,36 @@ interface DeleteInput {
 }
 ```
 
-### ⚠️ update は PUT（全体置換）
+### 🚨 update は PUT（全体置換） — ARRAYフィールドに注意
 
 `useMutation('update')` は内部で **PUT（全体置換）** を実行します。
-`answerData` に送信しなかったフィールドは **消失** します。必須フィールドが欠落すると 400 Bad Request になります。
+`answerData` に送信しなかったフィールドは **消失** します。
+
+#### 絶対にやってはいけないこと
 
 ```tsx
-// ❌ 変更フィールドだけ → 他フィールド消失 + 400エラー
-await updateMutation.mutate({ formId, recordId, answerData: { status: 'completed' } });
-
-// ✅ 既存値をスプレッドして変更箇所を上書き
+// 🚨 useRecordの値をそのままスプレッドすると、ARRAYフィールド・USERフィールドが壊れる
 const currentValues = record.values;
 await updateMutation.mutate({
   formId, recordId,
-  answerData: { ...currentValues, status: 'completed' },
+  answerData: { ...currentValues, status: 'completed' },  // ❌ ARRAYフィールドのデータが消失
 });
+```
+
+`useRecord` / `getAnswer` が返す `values` には、ARRAYフィールドは `__rowId` 参照のみが含まれ、実データはNodes APIで管理されています。これをそのまま `answerData` に渡すと、**サブテーブルの全行データが空に上書き**されます。USERフィールドも展開済みオブジェクト形式のため、**空オブジェクトに上書き**されます。
+
+#### 正しい使い方
+
+```tsx
+// ✅ ルートフィールド（TEXT/NUMBER/SELECT/DATE等）のみ指定
+await updateMutation.mutate({
+  formId, recordId,
+  answerData: { status: 'completed', notes: '完了' },
+});
+
+// ✅ サブテーブルの操作は useNodeMutation を使用
+const { createNode, updateNode, deleteNode } = useNodeMutation();
+await updateNode(answerId, rowId, { data: { amount: 1500000 } });
 ```
 
 > **PATCH APIについて**: `PATCH /api/v1/forms/{formId}/answers/{id}` は部分更新に対応していますが、
@@ -829,7 +844,7 @@ function useNodeMutation(): UseNodeMutationResult
 
 | パラメータ | 型 | 必須 | 説明 |
 |-----------|-----|------|------|
-| `data` | `Record<string, unknown>` | Yes | ノードデータ（**全フィールド置換**） |
+| `data` | `Record<string, unknown>` | Yes | ノードデータ（**シャローマージ** — 変更フィールドのみ指定可能、未送信フィールドは保持） |
 
 ### 使用例
 
@@ -843,9 +858,9 @@ const newNode = await createNode(answerId, {
   data: { task_name: '新タスク', status: 'todo' },
 });
 
-// 更新（⚠️ 全フィールド置換 — 省略したフィールドは消失）
+// 更新（✅ シャローマージ — 変更フィールドのみ送信OK、未送信フィールドは保持）
 await updateNode(answerId, rowId, {
-  data: { task_name: '更新済み', status: 'done' },
+  data: { status: 'done' },  // task_name は既存値が保持される
 });
 
 // 削除（⚠️ CASCADE — 子ノードも全削除）
@@ -854,7 +869,7 @@ await deleteNode(answerId, rowId);
 
 ### 注意事項
 
-1. **全フィールド置換**: `updateNode` は `data` に含まれないフィールドを削除します。必ず全フィールドを送信してください。
+1. **シャローマージ**: `updateNode` は `data` に含まれるフィールドのみ上書きし、未送信フィールドは既存値を保持します。`{ "field": null }` で明示的にnullクリアも可能です。
 2. **CASCADE削除**: `deleteNode` は子孫ノードも全て削除します。
 3. **手動refetch**: 操作後は `useNodes` の `refetch()` を呼んで最新データを反映してください。
 4. **useMutationとの使い分け**:

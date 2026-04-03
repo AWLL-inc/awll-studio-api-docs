@@ -715,6 +715,8 @@ export default function CreateCustomerForm() {
 
 ### パターン5: レコード更新データベース
 
+> **注意**: `useMutation('update')` は PUT 全体置換です。`answerData` にはルートフィールド（TEXT/NUMBER/SELECT/DATE等）のみ指定してください。ARRAYフィールド（サブテーブル）やUSERフィールドを含めるとデータが消失します。サブテーブルの操作には `useNodeMutation` を使用してください。
+
 ```tsx
 import React, { useState, useEffect } from 'react';
 import { useRecord, useMutation, useExecutionContext } from '@awll/sdk';
