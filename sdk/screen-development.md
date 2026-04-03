@@ -1098,6 +1098,65 @@ curl -X POST "https://api.awll-studio.ai/api/v1/screens/{screenId}/files/rename"
 - マルチファイルモードでない画面に対してファイル操作APIを呼び出すと `400 Bad Request` が返される
 - `contentType` はファイル拡張子から自動判定される（`.tsx` → `text/typescript`, `.css` → `text/css` 等）
 
+## 画面デプロイ（CDN配信）
+
+画面を作成・更新した後、ビジネスユーザーに反映するにはデプロイが必要です。
+
+### デプロイフロー
+
+```
+createScreen → updateScreen / saveScreenFile → deployScreen → CDN配信開始
+```
+
+### 各操作の違い
+
+| 操作 | やること | ビジネスユーザーへの反映 |
+|------|---------|----------------------|
+| **publishScreen** | DynamoDBのステータスをPUBLISHEDに変更するだけ | ❌ 反映されない |
+| **compileScreen** | TSX/JSXをesbuildでバンドルに変換→DynamoDBに保存 | ❌ 反映されない |
+| **deployScreen** | 自動コンパイル→S3にアップロード→CloudFrontキャッシュ無効化→publish | ✅ 反映される |
+
+### 推奨手順
+
+#### 新規画面
+
+```bash
+# 1. 画面作成
+POST /api/v1/screens  { screenName, screenCode, sourceCode }
+
+# 2. デプロイ（自動コンパイル付き）
+POST /api/v1/screens/{screenId}/deploy
+```
+
+#### コード更新時
+
+```bash
+# 1. コード更新
+PUT /api/v1/screens/{screenId}  { sourceCode }
+
+# 2. デプロイ（自動コンパイル付き）
+POST /api/v1/screens/{screenId}/deploy
+```
+
+### MCP Tool経由
+
+```
+1. createScreen({ screenName, screenCode, sourceCode, tenantCode })
+2. deployScreen({ screenId })  ← これだけでコンパイル＆デプロイ完了
+```
+
+> **Note**: `deployScreen` は compiledCode 未生成時に自動でコンパイルを実行します。
+> `compileScreen` を事前に実行してもよいですが、省略可能です。
+
+### ロールバック
+
+問題発生時は過去バージョンに戻せます：
+
+```
+1. getDeploymentHistory({ screenId })  ← 過去バージョン確認
+2. rollbackScreen({ screenId, version })  ← 指定バージョンにロールバック
+```
+
 ## 参考資料
 
 - [Screen SDK API Reference](./screen-sdk-reference.md)

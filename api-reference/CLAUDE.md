@@ -159,6 +159,15 @@ Nodes API（`POST /api/answers/{answerId}/nodes`）は以下の場合に使用:
 - `POST /api/v1/forms/{formId}/answers` でレコード作成すると**ルートノードが自動生成される**
 - `POST /api/answers/{answerId}/nodes` は**子ノード作成専用**
 
+### ⚠️ レコード更新は Node API を使用すること（必須）
+
+**`PUT /api/v1/forms/{formId}/answers/{answerId}` および `PATCH` は非推奨です。**
+
+- PUT は全フィールド置換のため、未送信フィールドが消失するリスクがある
+- レコードのフィールド更新は **Node API（`PUT /api/answers/{answerId}/nodes/{rowId}`）** で行うこと
+- ルートレベルのフィールド更新: `listNodes` でルートノード(depth=0)の rowId を取得 → `updateNode`
+- サブテーブル行の更新: `updateNode` で対象ノードを直接更新
+
 ### Nodes API を使う場合の手順
 
 ```
@@ -170,6 +179,20 @@ Nodes API（`POST /api/answers/{answerId}/nodes`）は以下の場合に使用:
    - data: ARRAYのサブフィールドに準拠したJSON
 ```
 
+### 階層指定取得（パフォーマンス最適化）
+
+大量ノードがあるレコードでは全ノード取得が遅いため、クエリパラメータで取得範囲を絞れる:
+
+```
+# 直接の子ノードのみ取得（1階層下）
+GET /api/answers/{answerId}/nodes?parentRowId={rowId}
+
+# 配下全子孫ノード取得（他の兄弟ツリーは除外）
+GET /api/answers/{answerId}/nodes?ancestorRowId={rowId}
+
+# parentRowId と ancestorRowId は排他（両方指定すると400エラー）
+```
+
 ## 画面(Screen)作成時の注意
 
 - `POST /api/v1/screens` でソースコードをアップロード可能
@@ -178,7 +201,7 @@ Nodes API（`POST /api/answers/{answerId}/nodes`）は以下の場合に使用:
 - ロールバック: `POST /api/v1/screens/{screenId}/rollback` で指定バージョンに戻す
 - ソースコードは `export default function ScreenName() { ... }` 形式
 - SDK import: `import { useRecords, useRecord, useMutation, useExecutionContext } from '@awll/sdk';`
-- iframe内で実行されるため `fetch()` での直接API呼び出しはCSPでブロックされる
+- iframe内で実行されるため `fetch()` での直接API呼び出しは認証トークンが付与されず401になる（画面コードからCognito JWTにはアクセス不可）
 
 ## Screen SDK の既知の制約
 
@@ -195,6 +218,7 @@ Nodes API（`POST /api/answers/{answerId}/nodes`）は以下の場合に使用:
 - トリガー: ON_CREATE, ON_UPDATE, ON_CHANGE
 - グローバル変数: `record`, `oldRecord`, `userId`, `api`
 - `api.getRecords()`, `api.createRecord()`, `api.updateRecord()`, `api.deleteRecord()` が使用可能
+- `api.sendEmail({ to, subject, body, templateVariables })` でメール送信可能（Issue #948）
 - ノード操作用のAPIメソッドは存在しない
 
 ## フィールド型一覧

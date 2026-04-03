@@ -36,8 +36,8 @@
 | GET | `/api/v1/forms/{formId}/answers` | レコード一覧（ページネーション・検索対応） |
 | POST | `/api/v1/forms/{formId}/answers` | レコードを作成 |
 | GET | `/api/v1/forms/{formId}/answers/{answerId}` | レコードの詳細を取得 |
-| PUT | `/api/v1/forms/{formId}/answers/{answerId}` | レコードを全体更新 |
-| PATCH | `/api/v1/forms/{formId}/answers/{answerId}` | レコードを部分更新（楽観ロック付き） |
+| ~~PUT~~ | `/api/v1/forms/{formId}/answers/{answerId}` | ~~レコードを全体更新~~ **非推奨: Node APIを使用** |
+| ~~PATCH~~ | `/api/v1/forms/{formId}/answers/{answerId}` | ~~レコードを部分更新~~ **非推奨: Node APIを使用** |
 | DELETE | `/api/v1/forms/{formId}/answers/{answerId}` | レコードを削除 |
 | POST | `/api/v1/forms/{formId}/answers/{answerId}/copy` | レコードを複製 |
 | POST | `/api/v1/forms/{formId}/answers/bulk` | レコードを一括作成/更新 |
@@ -48,7 +48,9 @@
 
 | Method | Path | 説明 |
 |--------|------|------|
-| GET | `/api/answers/{answerId}/nodes` | 全ノードを取得 |
+| GET | `/api/answers/{answerId}/nodes` | ノードを取得（階層指定対応） |
+| GET | `/api/answers/{answerId}/nodes?parentRowId={rowId}` | 直接の子ノードのみ取得 |
+| GET | `/api/answers/{answerId}/nodes?ancestorRowId={rowId}` | 配下全子孫ノードを取得 |
 | GET | `/api/answers/{answerId}/nodes/{rowId}` | ノードを取得（祖先パス含む） |
 | POST | `/api/answers/{answerId}/nodes` | 子ノードを作成 |
 | PUT | `/api/answers/{answerId}/nodes/{rowId}` | ノードを更新 |

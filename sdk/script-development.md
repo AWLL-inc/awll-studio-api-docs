@@ -77,7 +77,7 @@ record.action_logs = logs;
 console.log('アクション実行:', context.actionId, 'by', executedBy);
 ```
 
-> **注意**: スクリプト実行環境では `context.actionArgs?.comment` のオプショナルチェイニングが動作しない場合があります。`context.actionArgs && context.actionArgs.comment` の形式を使用してください。
+> **注意**: GraalVM環境では `context.actionArgs?.comment` のオプショナルチェイニングが動作しない場合があります。`context.actionArgs && context.actionArgs.comment` の形式を使用してください。
 
 ---
 
@@ -258,7 +258,7 @@ if (amount >= 1000000) {
 **パラメータ**:
 - `formId` (string): データベースID
 - `options` (object, optional):
-  - `limit` (number): 取得件数（デフォルト: 100、1回最大: 100、累計最大: 1000）
+  - `limit` (number): 取得件数（デフォルト: 20）
   - `nextToken` (string): ページネーショントークン
 
 **戻り値**: `Array<Record>` レコード配列
@@ -695,7 +695,7 @@ api.updateRecord('customer_form', record.id, {
 // ❌ 10000件のレコードを一度に取得
 const allRecords = api.getRecords('form_id', { limit: 10000 });
 
-// ✅ 適切な件数で取得（最大1000）
+// ✅ ページネーションで分割処理
 const records = api.getRecords('form_id', { limit: 100 });
 ```
 
@@ -721,7 +721,7 @@ record.startDate = new Date().toISOString().split('T')[0];
 return { record: record };  // ← 正しく取得される
 ```
 
-**理由**: スクリプト実行エンジンが自動的にコードをIIFEでラップするため、スクリプト側でIIFEを使用すると**二重IIFE**になり、内側の`return`が外側に伝わりません。
+**理由**: スクリプト実行エンジン（SecureJavaScriptExecutor）が自動的にコードをIIFEでラップするため、スクリプト側でIIFEを使用すると**二重IIFE**になり、内側の`return`が外側に伝わりません。
 
 ## トラブルシューティング
 
@@ -734,7 +734,7 @@ return { record: record };  // ← 正しく取得される
 
 **解決方法**:
 1. 管理画面でスクリプト設定を確認
-2. サーバーログでエラーを確認
+2. `docker compose logs -f backend` でエラーログ確認
 3. JavaScriptの構文エラーを修正
 
 ### エラー: "event is not defined"

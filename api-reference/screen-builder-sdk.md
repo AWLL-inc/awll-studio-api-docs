@@ -53,6 +53,13 @@ await mutation.delete(recordId);
 const { tenantId, userId } = useExecutionContext();
 ```
 
+### メール送信
+
+Screen SDK（React Hooks）にはメール送信用のフックはありません。メール送信が必要な場合は以下を使用してください：
+
+- **Script SDK**: スクリプトルール内で `api.sendEmail({ to, subject, body, templateVariables })` を使用（SES経由）
+- **REST API**: `POST /api/v1/mail/send` で直接送信（ADMIN/DEVELOPER権限が必要）
+
 ---
 
 ## 利用可能な MUI コンポーネント

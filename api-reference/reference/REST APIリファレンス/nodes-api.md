@@ -25,9 +25,9 @@
 - 親ノードが持つ **ARRAY型フィールドのfieldCode** を指定します
 - 例: 親ノードに `tasks` (ARRAY) フィールドがある場合、`fieldCode: "tasks"`
 
-### 4. Nodes API の操作は answerData に自動同期される
+### 4. Nodes API の操作は answerData に自動同期される（Issue #1325）
 
-- answerData 自動同期が実装済み。ノードの**作成・削除・移動**時に `FormAnswer.answerData` が自動同期される
+- Issue #1325 で answerData 自動同期が実装済み。ノードの**作成・削除・移動**時に `FormAnswer.answerData` が自動同期される
 - PUT（ノード更新）時も answerData に自動反映される
 - したがって、Nodes API の操作結果はカスタム画面（Screen SDK の `useRecords` / `useRecord`）にも反映される
 - `rebuild-index` は不要（自動同期済み）。手動で `rebuild-index` を呼ぶことも可能だが、通常は不要
@@ -64,7 +64,9 @@
 
 | Method | Path | 説明 |
 |--------|------|------|
-| GET | `/api/answers/{answerId}/nodes` | 全ノードを取得 |
+| GET | `/api/answers/{answerId}/nodes` | ノードを取得（階層指定対応） |
+| GET | `/api/answers/{answerId}/nodes?parentRowId={rowId}` | 直接の子ノードのみ取得（1階層下） |
+| GET | `/api/answers/{answerId}/nodes?ancestorRowId={rowId}` | 配下全子孫ノードを取得 |
 | GET | `/api/answers/{answerId}/nodes/{rowId}` | ノードを取得（祖先情報含む） |
 | POST | `/api/answers/{answerId}/nodes` | **子ノードを作成**（ルートノード作成不可） |
 | PUT | `/api/answers/{answerId}/nodes/{rowId}` | ノードを更新 |
@@ -77,7 +79,43 @@
 
 ## GET /api/answers/{answerId}/nodes
 
-指定レコードの全ノードを取得します。
+指定レコードのノードを取得します。クエリパラメータで取得範囲を制御できます。
+
+### クエリパラメータ
+
+| パラメータ | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| parentRowId | string | No | 指定ノードの**直接の子ノードのみ**取得（1階層下） |
+| ancestorRowId | string | No | 指定ノードの**配下全子孫ノード**を取得 |
+
+> **注意**: `parentRowId` と `ancestorRowId` は排他です。両方指定すると 400 Bad Request になります。どちらも未指定の場合は全ノードを取得します（従来互換）。
+
+### 使い分け
+
+| パターン | ユースケース |
+|---------|------------|
+| パラメータなし | 全ノード一括取得（小規模データ向け） |
+| `?parentRowId={rowId}` | ツリーUI等で展開した階層の直下のノードだけ取得 |
+| `?ancestorRowId={rowId}` | 特定サブツリーの全データを取得（他の兄弟ツリーは除外） |
+
+### curl例
+
+```bash
+# 全ノード取得（従来互換）
+curl -s -H "Authorization: Bearer $TOKEN" \
+  -H "X-Tenant-Code: $TENANT" \
+  "$API/api/answers/$ANSWER_ID/nodes"
+
+# ルートノードの直接の子ノードのみ取得
+curl -s -H "Authorization: Bearer $TOKEN" \
+  -H "X-Tenant-Code: $TENANT" \
+  "$API/api/answers/$ANSWER_ID/nodes?parentRowId=$ROOT_ROW_ID"
+
+# 特定ノード配下の全子孫を取得
+curl -s -H "Authorization: Bearer $TOKEN" \
+  -H "X-Tenant-Code: $TENANT" \
+  "$API/api/answers/$ANSWER_ID/nodes?ancestorRowId=$NODE_ROW_ID"
+```
 
 ### レスポンス (200)
 
@@ -239,7 +277,7 @@ curl -s -X POST \
 
 子ノード作成後、関連する集計フィールドがあれば自動的に再計算されます。
 
-> **answerData自動同期**: 作成後、`FormAnswer.answerData` は自動同期されます。
+> **✅ answerData自動同期（Issue #1325）**: 作成後、`FormAnswer.answerData` は自動同期されます。
 > `rebuild-index` の手動呼び出しは通常不要です。
 
 ---
@@ -251,7 +289,7 @@ curl -s -X POST \
 > **⚠️ 全フィールド置換**: `data` に含まれないフィールドは消失します。
 > 変更するフィールドだけでなく、既存フィールドも全て含めて送信してください。
 >
-> **answerData自動同期**: ノード更新後、`FormAnswer.answerData` は自動同期されます。
+> **✅ answerData自動同期（Issue #1325）**: ノード更新後、`FormAnswer.answerData` は自動同期されます。
 > `rebuild-index` の手動呼び出しは通常不要です。
 
 ### リクエスト
@@ -378,6 +416,12 @@ curl -s -X POST \
 - `fieldCode`: null
 - `ancestorPath`: ""（空文字）
 
+### Q: 大量ノードがあるレコードで画面が遅い場合は？
+
+**A**: 全ノード取得の代わりに階層指定パラメータを使ってください。
+- `?parentRowId={rowId}` で必要な階層の子ノードだけ取得（ツリーUIの遅延読み込みに最適）
+- `?ancestorRowId={rowId}` で特定サブツリーだけ取得（他の兄弟ツリーの大量データを除外）
+
 ### Q: parentRowId に何を指定すればよいか？
 
 **A**: `GET /api/answers/{answerId}/nodes` で全ノードを取得し、親にしたいノードの `rowId` を指定してください。ルートノード直下に子を作成する場合は、`depth: 0` のノードの `rowId` を使用します。
@@ -401,4 +445,4 @@ curl -s -X POST \
 
 ---
 
-**更新日**: 2026-03-24
+**更新日**: 2026-03-30

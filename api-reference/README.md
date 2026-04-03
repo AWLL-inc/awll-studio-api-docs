@@ -111,7 +111,7 @@ AWLL Studio Platform の REST API 仕様ドキュメントです。
 
 | パラメータ | 説明 |
 |-----------|------|
-| `limit` | 取得件数上限（デフォルト20、最大1000） |
+| `limit` | 取得件数上限（デフォルト20、最大100） |
 | `nextToken` | 次ページ取得用トークン（レスポンスに含まれる） |
 
 ```json
@@ -153,5 +153,5 @@ AWLL Studio Platform の REST API 仕様ドキュメントです。
 ブラウザで直接 API ドキュメントを参照できます。
 
 ```
-https://your-server/swagger-ui/index.html
+https://api.awll-studio.ai/swagger-ui/index.html
 ```

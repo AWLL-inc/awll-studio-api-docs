@@ -157,7 +157,7 @@ curl -s -X POST \
 ブラウザで全エンドポイントを確認できます:
 
 ```
-https://your-server/swagger-ui/index.html
+https://api.awll-studio.ai/swagger-ui/index.html
 ```
 
 ---
