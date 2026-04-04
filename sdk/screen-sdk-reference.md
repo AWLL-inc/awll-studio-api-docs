@@ -878,6 +878,101 @@ await deleteNode(answerId, rowId);
 
 ---
 
+## useGeneratePdf()
+
+PDF帳票を生成してダウンロードするフックです。バックエンドでThymeleafテンプレートにデータを流し込み、PDFを生成します。
+
+```tsx
+function useGeneratePdf(): {
+  generatePdf: (options: GeneratePdfRequestPayload) => Promise<GeneratePdfResponsePayload>;
+  isLoading: boolean;
+  error: AwllError | null;
+  result: GeneratePdfResponsePayload | null;
+}
+```
+
+### パラメータ（GeneratePdfRequestPayload）
+
+| パラメータ | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| `templateName` | `string` | Yes | テンプレート名（`templates/pdf/` 配下、拡張子なし。英小文字・数字・ハイフンのみ） |
+| `variables` | `Record<string, unknown>` | Yes | テンプレートに渡す変数（Thymeleafのコンテキスト変数） |
+| `fileName` | `string` | No | ダウンロード時のファイル名（拡張子なし、省略時はテンプレート名） |
+
+### レスポンス（GeneratePdfResponsePayload）
+
+| フィールド | 型 | 説明 |
+|-----------|-----|------|
+| `downloadUrl` | `string` | 署名付きダウンロードURL（15分有効） |
+| `key` | `string` | ストレージオブジェクトキー |
+| `expiresAt` | `string` | URL有効期限（ISO 8601） |
+
+### 使用例
+
+```tsx
+import { useRecords, useGeneratePdf } from '@awll/sdk';
+
+export default function InvoicePage() {
+  const { data: records } = useRecords({ formId: 'FORM_ID' });
+  const { generatePdf, isLoading } = useGeneratePdf();
+
+  const handleDownload = async (record) => {
+    try {
+      await generatePdf({
+        templateName: 'generic-report',
+        variables: {
+          title: `レポート: ${record.values?.name}`,
+          company: record.values?.company_name,
+          date: new Date().toLocaleDateString('ja-JP'),
+          headers: ['No.', '商品名', '数量', '単価'],
+          fields: ['no', 'name', 'quantity', 'price'],
+          items: record.values?.items || [],
+        },
+        fileName: `レポート_${record.values?.name}`,
+      });
+      // ダウンロードはホスト側で自動開始（window.open）
+    } catch (err) {
+      console.error('PDF生成エラー:', err.message);
+    }
+  };
+
+  return (
+    <div>
+      {(records || []).map((r) => (
+        <button key={r.recordId} onClick={() => handleDownload(r)} disabled={isLoading}>
+          {isLoading ? '生成中...' : 'PDF出力'}
+        </button>
+      ))}
+    </div>
+  );
+}
+```
+
+### テンプレート変数（generic-report テンプレート）
+
+| 変数 | 型 | 説明 |
+|------|-----|------|
+| `title` | `string` | レポートタイトル |
+| `subtitle` | `string` | サブタイトル（任意） |
+| `company` | `string` | 会社名（任意） |
+| `author` | `string` | 作成者（任意） |
+| `date` | `string` | 作成日（任意） |
+| `description` | `string` | 概要テキスト（任意） |
+| `headers` | `string[]` | テーブルヘッダー |
+| `fields` | `string[]` | テーブルの各行から取得するフィールド名 |
+| `items` | `object[]` | テーブルデータ |
+| `itemsTitle` | `string` | テーブルセクションのタイトル（デフォルト: "明細"） |
+| `notes` | `string` | 備考テキスト（任意） |
+
+### 注意事項
+
+1. **iframe制約**: ダウンロードはホスト側（親ウィンドウ）の `window.open()` で実行されます。iframe内から直接ダウンロードはできません。
+2. **タイムアウト**: PDF生成は120秒でタイムアウトします。
+3. **テンプレート名**: 英小文字・数字・ハイフンのみ使用可能（パストラバーサル防止）。
+4. **日本語対応**: テンプレート内で日本語テキストが正しくレンダリングされます（Noto Sans CJK JP フォント使用）。
+
+---
+
 ## サブテーブル（ARRAY型）データ取得のベストプラクティス
 
 ### 重要: useRecords はサブテーブルの完全なデータを保証しない
