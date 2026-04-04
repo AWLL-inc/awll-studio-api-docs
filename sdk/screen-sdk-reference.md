@@ -876,6 +876,22 @@ await deleteNode(answerId, rowId);
    - `useMutation` → ルートレコード（FormAnswer）のCRUD
    - `useNodeMutation` → サブテーブル行（Node）のCRUD
 
+### HTTPメソッド対応表（REST API直接呼び出し時の注意）
+
+画面SDKを使わずREST APIを直接呼び出す場合、正しいHTTPメソッドを使用してください。
+
+| API | HTTPメソッド | 用途 |
+|-----|------------|------|
+| レコード作成 | **POST** `/api/v1/forms/{formId}/answers` | レコード作成 |
+| レコード更新（全体置換） | **PUT** `/api/v1/forms/{formId}/answers/{id}` | ルートフィールド全体置換 |
+| レコード部分更新 | **PATCH** `/api/v1/forms/{formId}/answers/{id}` | 差分更新（`operations` + `If-Match` 必須） |
+| レコード削除 | **DELETE** `/api/v1/forms/{formId}/answers/{id}` | レコード削除 |
+| ノード作成 | **POST** `/api/answers/{id}/nodes` | サブテーブル行追加 |
+| ノード更新 | **PUT** `/api/answers/{id}/nodes/{rowId}` | サブテーブル行更新 |
+| ノード削除 | **DELETE** `/api/answers/{id}/nodes/{rowId}` | サブテーブル行削除 |
+
+> 🚨 **Node API に PATCH メソッドはありません。** ノード更新は **PUT のみ** です。`PATCH /api/answers/{id}/nodes/{rowId}` を送信すると 405 Method Not Allowed（Internal Server Error）になります。ノードの部分更新は PUT で `data` に変更フィールドのみ指定すれば、サーバー側でシャローマージされます。
+
 ---
 
 ## useGeneratePdf()

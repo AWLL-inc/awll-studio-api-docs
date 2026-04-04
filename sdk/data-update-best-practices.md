@@ -7,7 +7,7 @@
 
 ## 背景
 
-PUT APIの誤用によるデータ消失を防ぐため、安全なデータ更新パターンを定義する。
+2026-04-03にPUT APIの誤用によるデータ消失インシデントが発生。`getAnswer` → 編集 → `updateAnswer` のラウンドトリップにより、ARRAYフィールド15件・USERフィールドが全消失した。本ドキュメントはこの教訓をもとに、安全なデータ更新パターンを定義する。
 
 ---
 
@@ -157,6 +157,24 @@ PUT /api/v1/answers/{answerId}/nodes
 
 ---
 
+## HTTPメソッド対応表
+
+REST APIを直接呼び出す場合、正しいHTTPメソッドを使用してください。
+
+| API | HTTPメソッド | 用途 |
+|-----|------------|------|
+| レコード作成 | **POST** `/api/v1/forms/{formId}/answers` | レコード作成 |
+| レコード更新（全体置換） | **PUT** `/api/v1/forms/{formId}/answers/{id}` | ルートフィールド全体置換 |
+| レコード部分更新 | **PATCH** `/api/v1/forms/{formId}/answers/{id}` | 差分更新（`operations` + `If-Match` 必須） |
+| レコード削除 | **DELETE** `/api/v1/forms/{formId}/answers/{id}` | レコード削除 |
+| ノード作成 | **POST** `/api/answers/{id}/nodes` | サブテーブル行追加 |
+| ノード更新 | **PUT** `/api/answers/{id}/nodes/{rowId}` | サブテーブル行更新（シャローマージ） |
+| ノード削除 | **DELETE** `/api/answers/{id}/nodes/{rowId}` | サブテーブル行削除 |
+
+> **Node API に PATCH メソッドはありません。** ノード更新は PUT のみです。PATCH を送信すると 405 / 500 エラーになります。PUT で `data` に変更フィールドのみ指定すれば、サーバー側で自動マージされます。
+
+---
+
 ## updateAnswer を使う場合の注意事項
 
 `updateAnswer` の使用が避けられない場合（ARRAYフィールド・USERフィールドが一切ないシンプルなレコードの全フィールド更新）:
@@ -164,6 +182,7 @@ PUT /api/v1/answers/{answerId}/nodes
 1. **事前にgetFormでスキーマを確認** — ARRAY型・USER型フィールドが存在しないことを確認
 2. **全フィールドを含める** — 省略したフィールドは消失する
 3. **SELECTフィールドはvalue値を使用** — 表示ラベルではなく内部値
+4. **バックアップを取る** — 更新前に `getAnswer` + `listNodes` の結果を保存
 
 ---
 
@@ -175,4 +194,5 @@ PUT /api/v1/answers/{answerId}/nodes
 ---
 
 **作成日**: 2026-04-03
+**更新日**: 2026-04-04
 **更新者**: AWLL Studio Team
