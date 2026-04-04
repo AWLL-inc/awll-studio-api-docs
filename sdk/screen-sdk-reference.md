@@ -894,6 +894,121 @@ await deleteNode(answerId, rowId);
 
 ---
 
+## useNavigation()
+
+画面間遷移を行うReact Hook。iframe内の画面コードからホスト側のルーティングを制御します。
+
+> ⚠️ iframe は `sandbox` 属性で `allow-top-navigation` なしで実行されるため、`<a target="_top">` や `window.top.location` は使用できません。画面間遷移には必ず `useNavigation` を使用してください。
+
+### シグネチャ
+
+```typescript
+function useNavigation(): UseNavigationResult
+```
+
+### UseNavigationResult
+
+| プロパティ | 型 | 説明 |
+|-----------|-----|------|
+| `navigateToScreen` | `(screenCode, params?) => Promise<{success, screenId}>` | 別の画面に遷移 |
+| `navigateToForm` | `(formId, options?) => Promise<{success}>` | DB一覧/新規作成/編集に遷移 |
+| `navigateToExternalUrl` | `(url, options?) => Promise<{success}>` | 外部URLに遷移 |
+| `goBack` | `() => Promise<{success}>` | 前の画面に戻る |
+| `isNavigating` | `boolean` | 遷移処理中フラグ |
+
+### navigateToScreen
+
+```typescript
+navigateToScreen(screenCode: string, params?: Record<string, string>): Promise<{success: boolean, screenId: string}>
+```
+
+| 引数 | 型 | 必須 | 説明 |
+|------|-----|------|------|
+| `screenCode` | `string` | Yes | 遷移先の画面コード（`^[a-z0-9_]+$`、50文字以内） |
+| `params` | `Record<string, string>` | No | クエリパラメータ（URLに `?key=value&...` として付与） |
+
+- `screenCode` から `screenId` を自動解決（`GET /api/v1/screens/code/{screenCode}/published`）
+- ブラウザバック・リロード・URL共有いずれも動作する
+
+### navigateToForm
+
+```typescript
+navigateToForm(formId: string, options?: { mode?: 'list' | 'create' | 'edit'; recordId?: string }): Promise<{success: boolean}>
+```
+
+| mode | 遷移先 | 説明 |
+|------|--------|------|
+| `list`（デフォルト） | `/forms/:formId/answers` | データベース一覧画面 |
+| `create` | `/forms/:formId/answers/new` | 新規作成画面 |
+| `edit` | `/forms/:formId/answers/:recordId/edit` | レコード編集画面（`recordId` 必須） |
+
+### navigateToExternalUrl
+
+```typescript
+navigateToExternalUrl(url: string, options?: { newTab?: boolean }): Promise<{success: boolean}>
+```
+
+| 引数 | 型 | 必須 | 説明 |
+|------|-----|------|------|
+| `url` | `string` | Yes | 遷移先URL（`http:` / `https:` のみ許可） |
+| `options.newTab` | `boolean` | No | `true` で新しいタブで開く（デフォルト: `false`） |
+
+### 使用例
+
+```tsx
+import { useNavigation } from '@awll/sdk';
+
+export default function DealManagement() {
+  const { navigateToScreen, navigateToForm, goBack, isNavigating } = useNavigation();
+
+  // 別画面に遷移（クエリパラメータ付き）
+  const handleViewBilling = async (month: string) => {
+    await navigateToScreen('ww_billing', { month });
+  };
+
+  // DB編集画面に遷移
+  const handleEditRecord = async (formId: string, recordId: string) => {
+    await navigateToForm(formId, { mode: 'edit', recordId });
+  };
+
+  // 戻る
+  const handleBack = async () => {
+    await goBack();
+  };
+
+  return (
+    <div>
+      <button onClick={handleBack} disabled={isNavigating}>← 戻る</button>
+      <button onClick={() => handleViewBilling('2026-04')}>
+        請求管理画面で確認する（2026年04月）→
+      </button>
+    </div>
+  );
+}
+```
+
+### 遷移先でパラメータを受け取る
+
+```tsx
+import { useExecutionContext } from '@awll/sdk';
+
+export default function BillingScreen() {
+  const context = useExecutionContext();
+  const month = context?.query?.month || context?.params?.month;
+  // → '2026-04'
+
+  return <div>請求管理: {month}</div>;
+}
+```
+
+### 注意事項
+
+1. **screenCode のバリデーション**: 英小文字・数字・アンダースコアのみ。先頭・末尾のアンダースコア不可。
+2. **params のサニタイズ**: ホスト側でサニタイズされるため、XSSリスクはありません。
+3. **`<a target="_top">` は使用不可**: iframe sandbox制約により `allow-top-navigation` フラグがないため、直接のトップフレーム操作はブロックされます。
+
+---
+
 ## useGeneratePdf()
 
 PDF帳票を生成してダウンロードするフックです。バックエンドでThymeleafテンプレートにデータを流し込み、PDFを生成します。
