@@ -1,0 +1,436 @@
+# レコード API (Form Answers)
+
+**ベースパス**: `/api/v1/forms/{formId}/answers`
+**権限**: FORM_ANSWER:READ / FORM_ANSWER:WRITE + BUSINESS_ACCESS
+
+## エンドポイント一覧
+
+| Method | Path | 説明 | 権限 |
+|--------|------|------|------|
+| GET | `/api/v1/forms/{formId}/answers` | レコード一覧取得 | READ + BUSINESS_ACCESS |
+| POST | `/api/v1/forms/{formId}/answers` | レコード作成 | WRITE + BUSINESS_ACCESS |
+| GET | `/api/v1/forms/{formId}/answers/{answerId}` | レコード詳細取得 | READ + BUSINESS_ACCESS |
+| PUT | `/api/v1/forms/{formId}/answers/{answerId}` | レコード全体更新 | WRITE + BUSINESS_ACCESS |
+| PATCH | `/api/v1/forms/{formId}/answers/{answerId}` | レコード部分更新（楽観ロック付き） | WRITE |
+| DELETE | `/api/v1/forms/{formId}/answers/{answerId}` | レコード削除 | WRITE + BUSINESS_ACCESS |
+| POST | `/api/v1/forms/{formId}/answers/{answerId}/copy` | レコード複製 | WRITE + BUSINESS_ACCESS |
+| POST | `/api/v1/forms/{formId}/answers/bulk` | 一括作成 | WRITE + BUSINESS_ACCESS |
+| PUT | `/api/v1/forms/{formId}/answers/bulk` | 一括更新 | WRITE + BUSINESS_ACCESS |
+| POST | `/api/v1/forms/{formId}/answers/bulk-delete` | 一括削除 | WRITE + BUSINESS_ACCESS |
+| POST | `/api/v1/forms/{formId}/answers/export` | CSV出力（ZIP形式） | READ + BUSINESS_ACCESS |
+| POST | `/api/v1/forms/{formId}/answers/rebuild-index` | 検索インデックス再構築 | WRITE + BUSINESS_ACCESS |
+
+> **注意**: 一括操作は `POST /bulk`（一括作成）と `PUT /bulk`（一括更新）で分離されています。
+
+### 大量ネストデータの更新に関する注意
+
+3階層以上のARRAYネスト × 100件以上のサブレコードを含むレコードの **PUT更新で504 Gateway Timeoutが発生する場合がある**。
+
+#### 回避策
+
+1. **DELETE → POST で再作成**: answerIdは変わるが確実にanswerDataに反映される
+2. **Nodes API で個別ノードを更新**: 特定のサブレコードだけ更新可能。Issue #1325 により answerData にも自動同期される
+3. **UI手動更新**: AWLL Studio画面からの更新は確実に反映される
+
+#### ARRAY データの更新ルール
+
+- POST（新規作成）: `answerData` にARRAYデータを含めて送信すればanswerDataとノード両方に反映される
+- PUT（全体更新）: 同上だが、データ量が大きい場合504のリスクあり
+- Nodes API PUT: Issue #1325 の自動同期実装により、answerData にも自動反映される。通常は `rebuild-index` の手動呼び出しは不要
+
+---
+
+## GET /api/v1/forms/{formId}/answers
+
+レコード一覧を取得します。
+
+### クエリパラメータ
+
+#### 基本パラメータ（nextToken方式）
+
+| パラメータ | 型 | デフォルト | 説明 |
+|-----------|-----|-----------|------|
+| `limit` | integer | 20 | 取得件数（1〜1000） |
+| `nextToken` | string | - | ページネーショントークン（次ページ取得用） |
+| `search` | string | - | 検索キーワード（部分一致、最大200文字） |
+
+> **注意**: 取得件数のパラメータ名は `limit` です（`pageSize` ではありません）。`pageSize` を指定しても無視され、デフォルトの20件が返ります。
+
+#### 拡張パラメータ（offset方式 — `offset` 指定時に有効）
+
+`offset` パラメータを指定すると、nextToken方式ではなくoffset-based paginationが使用されます。
+
+| パラメータ | 型 | デフォルト | 説明 |
+|-----------|-----|-----------|------|
+| `offset` | integer | - | オフセット（0始まり） |
+| `sortField` | string | - | ソートフィールド（`fieldCode` または `createdAt` / `updatedAt`） |
+| `sortOrder` | string | - | ソート順（`asc` / `desc`） |
+| `filters` | string (JSON) | - | フィルター条件（JSON配列文字列） |
+
+#### ページネーション例
+
+```bash
+# 1ページ目（50件取得）
+GET /api/v1/forms/{formId}/answers?limit=50
+
+# 2ページ目（nextTokenで続きを取得）
+GET /api/v1/forms/{formId}/answers?limit=50&nextToken={前回のnextToken}
+
+# 全件取得: nextToken が null になるまでループ
+```
+
+```bash
+# offset方式（ソート・フィルター付き）
+GET /api/v1/forms/{formId}/answers?limit=50&offset=0&sortField=createdAt&sortOrder=desc
+GET /api/v1/forms/{formId}/answers?limit=50&offset=50&sortField=createdAt&sortOrder=desc
+```
+
+### レスポンス (200)
+
+```json
+{
+  "items": [
+    {
+      "tenantId": "demo",
+      "formId": "customer-db",
+      "answerId": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      "answerData": {
+        "name": "株式会社ABC",
+        "email": "info@abc.co.jp"
+      },
+      "version": 3,
+      "formVersion": "01ARZ3NDEKTSV4RRFFQ69G5FAW",
+      "createdAt": "2026-03-16T09:00:00Z",
+      "updatedAt": "2026-03-16T10:30:00Z",
+      "createdBy": "user-uuid",
+      "updatedBy": "user-uuid",
+      "rootNodeId": "01ARZ3NDEKTSV4RRFFQ69G5FAX"
+    }
+  ],
+  "nextToken": "eyJwayI6...",
+  "searchScope": "ALL",
+  "searchableFields": ["name", "email", "status"]
+}
+```
+
+
+---
+
+## GET /api/v1/forms/{formId}/answers/{answerId}
+
+レコードの詳細を取得します。
+
+### クエリパラメータ
+
+| パラメータ | 型 | デフォルト | 説明 |
+|-----------|-----|-----------|------|
+| `recalculate` | boolean | false | true で最新スキーマに基づいて再計算 |
+| `enrich` | string | "default" | `hierarchical` で階層的にデータを展開 |
+
+### レスポンス (200)
+
+```json
+{
+  "tenantId": "demo",
+  "formId": "customer-db",
+  "answerId": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+  "answerData": {
+    "name": "株式会社ABC",
+    "email": "info@abc.co.jp",
+    "contracts": [
+      { "__rowId": "01HQA123...", "contract_name": "契約A", "amount": 1500000 }
+    ]
+  },
+  "recalculatedData": null,
+  "recalculationError": null,
+  "version": 3,
+  "formVersion": "01ARZ3NDEKTSV4RRFFQ69G5FAW",
+  "createdAt": "2026-03-16T09:00:00Z",
+  "updatedAt": "2026-03-16T10:30:00Z",
+  "createdBy": "user-uuid",
+  "updatedBy": "user-uuid",
+  "rootNodeId": "01ARZ3NDEKTSV4RRFFQ69G5FAX"
+}
+```
+
+
+---
+
+## POST /api/v1/forms/{formId}/answers
+
+レコードを作成します。
+
+> **⚠️ 504 Gateway Timeout 時の重複作成リスク**
+>
+> 大量のARRAYデータを含むレコードの作成で504が返っても、
+> サーバー側では処理が完了している場合があります。
+> 504受信後は `GET /api/v1/forms/{formId}/answers` で存在確認してから
+> 再試行してください。確認せず再送すると重複レコードが作成されます。
+
+### リクエスト
+
+```json
+{
+  "answerData": {
+    "name": "サンプル顧客",
+    "email": "sample@example.com"
+  }
+}
+```
+
+| フィールド | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| answerData | object | Yes | レコードデータ（フォームスキーマに準拠） |
+
+### レスポンス (200)
+
+`FormAnswerResponse` を返却。
+
+---
+
+## PUT /api/v1/forms/{formId}/answers/{answerId}
+
+レコードを全体更新（完全置換）します。
+
+> **⚠️ 大量ネストデータでの504リスク**
+>
+> ARRAYフィールド（サブテーブル）を多く含むレコードの全体PUTは、内部でノードツリーの
+> 再構築が発生するため、タイムアウト（30秒）を超過して **504 Gateway Timeout** になる場合があります。
+>
+> **504が発生する目安:**
+> - 3階層以上のネスト（例: 年度 → 案件ARRAY → 月次売上ARRAY）
+> - サブテーブル合計100行以上
+>
+> **推奨される代替手段:**
+> - 特定フィールドのみ更新 → `PATCH` で差分更新（下記参照）
+> - サブテーブル行の個別更新 → `PUT /api/answers/{answerId}/nodes/{rowId}`（[Nodes API](./nodes-api.md) 参照）
+> - サブテーブル行の追加 → `POST /api/answers/{answerId}/nodes`
+
+### リクエスト
+
+```json
+{
+  "answerData": {
+    "name": "更新後の顧客名",
+    "email": "updated@example.com"
+  }
+}
+```
+
+### エラー
+
+| Status | 意味 |
+|--------|------|
+| 400 | バリデーションエラー |
+| 404 | レコードが存在しない |
+| 504 | Gateway Timeout（ネストデータが大きすぎる場合） |
+
+---
+
+## PATCH /api/v1/forms/{formId}/answers/{answerId} ✅推奨
+
+レコードを部分更新します（楽観ロック付き）。
+
+> **✅ 大量ネストデータの更新にはこのAPIを推奨**
+>
+> PUT（全体置換）と異なり、変更対象のフィールドのみを操作するため、
+> ARRAYフィールドが多いレコードでも504 Gateway Timeoutが発生しません。
+
+### ヘッダー
+
+| ヘッダー | 必須 | 説明 |
+|---------|------|------|
+| `If-Match` | Yes | 現在のバージョン番号 |
+
+### リクエスト
+
+```json
+{
+  "patches": [
+    {
+      "op": "replace",
+      "path": "/name",
+      "value": "新しい名前"
+    },
+    {
+      "op": "append",
+      "path": "/contracts",
+      "value": { "contract_name": "新規契約", "amount": 500000 }
+    },
+    {
+      "op": "update",
+      "path": "/contracts[__rowId='01HQA123']",
+      "value": { "amount": 2000000 }
+    },
+    {
+      "op": "delete",
+      "path": "/contracts[__rowId='01HQA456']"
+    }
+  ]
+}
+```
+
+### PatchOperation
+
+| フィールド | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| op | string | Yes | `replace` / `append` / `update` / `delete` |
+| path | string | Yes | JSONPath（例: `contracts[__rowId='01HQA123'].amount`） |
+| value | any | 条件付き | `delete` 以外では必須 |
+
+> **注意**: `op` は独自形式（`replace`, `append`, `update`, `delete`）です。標準JSON Patch（RFC 6902）ではありません。
+
+### レスポンス (200)
+
+```json
+{
+  "answerId": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+  "version": 4,
+  "updatedAt": "2026-03-16T11:00:00Z",
+  "updatedFields": ["name", "contracts"],
+  "calculatedFields": { "total_amount": 2500000 },
+  "answerData": { ... }
+}
+```
+
+### エラー
+
+| Status | 意味 |
+|--------|------|
+| 409 | 楽観ロック競合（バージョン不一致） |
+| 412 | If-Match ヘッダー不一致 |
+
+---
+
+## POST /api/v1/forms/{formId}/answers/{answerId}/copy
+
+レコードを複製します。
+
+### リクエスト
+
+```json
+{
+  "copyMode": "FULL",
+  "fieldSettings": {
+    "contracts": { "include": true, "deepCopy": true }
+  },
+  "dataOverrides": {
+    "name": "コピー: 株式会社ABC"
+  }
+}
+```
+
+| フィールド | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| copyMode | enum | Yes | `FULL` / `SHALLOW` / `CUSTOM` |
+| fieldSettings | object | No | CUSTOM時のフィールド別設定 |
+| dataOverrides | object | No | コピー先で上書きするデータ |
+
+### レスポンス (200)
+
+```json
+{
+  "copiedAnswer": { ... },
+  "summary": {
+    "sourceAnswerId": "01ARZ3...",
+    "newAnswerId": "01BCD4...",
+    "copiedFieldCount": 5,
+    "skippedFieldCount": 1,
+    "copiedSubformCount": 3,
+    "copiedArrayItemCount": 10,
+    "executionTimeMs": 450
+  }
+}
+```
+
+---
+
+## 一括操作
+
+### POST /api/v1/forms/{formId}/answers/bulk（一括作成）
+
+```json
+{
+  "items": [
+    { "answerData": { "name": "顧客1" } },
+    { "answerData": { "name": "顧客2" } }
+  ]
+}
+```
+
+| フィールド | 型 | 必須 | バリデーション |
+|-----------|-----|------|-------------|
+| items | array | Yes | 最大100件 |
+
+### PUT /api/v1/forms/{formId}/answers/bulk（一括更新）
+
+```json
+{
+  "items": [
+    { "answerId": "01ARZ3...", "answerData": { "name": "更新後1" } },
+    { "answerId": "01BCD4...", "answerData": { "name": "更新後2" } }
+  ]
+}
+```
+
+### POST /api/v1/forms/{formId}/answers/bulk-delete（一括削除）
+
+```json
+{
+  "answerIds": ["01ARZ3...", "01BCD4..."]
+}
+```
+
+### 一括操作レスポンス (200)
+
+```json
+{
+  "totalRequested": 2,
+  "succeeded": 2,
+  "failed": 0,
+  "results": [
+    { "index": 0, "status": "SUCCESS", "answerId": "01NEW1..." },
+    { "index": 1, "status": "SUCCESS", "answerId": "01NEW2..." }
+  ]
+}
+```
+
+部分失敗時:
+
+```json
+{
+  "totalRequested": 2,
+  "succeeded": 1,
+  "failed": 1,
+  "results": [
+    { "index": 0, "status": "SUCCESS", "answerId": "01NEW1..." },
+    { "index": 1, "status": "FAILED", "error": "Validation failed: name is required" }
+  ]
+}
+```
+
+---
+
+## POST /api/v1/forms/{formId}/answers/export
+
+CSV一括出力します（UTF-8 BOM付きZIP形式）。
+
+### クエリパラメータ
+
+| パラメータ | 型 | 説明 |
+|-----------|-----|------|
+| includeArrayFields | string | 出力対象のARRAYフィールドパス |
+
+### レスポンス
+
+Content-Type: `application/zip`
+
+---
+
+## POST /api/v1/forms/{formId}/answers/rebuild-index
+
+検索インデックスを再構築します。表示値の更新時に使用。
+
+---
+
+**更新日**: 2026-03-24
