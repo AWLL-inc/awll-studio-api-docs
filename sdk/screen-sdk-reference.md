@@ -13,6 +13,7 @@ import {
   useMutation,
   useNodes,
   useNodeMutation,
+  useFileUpload,
 } from '@awll/sdk';
 ```
 
@@ -1104,6 +1105,185 @@ export default function InvoicePage() {
 
 ---
 
+## useFileUpload()
+
+ファイルのアップロード・ダウンロード・削除を行うフックです。presigned URL方式で、ブラウザから直接ストレージにファイルをアップロードします。
+
+```tsx
+function useFileUpload(): {
+  uploadFile: (file: File, options?: UploadOptions) => Promise<FileMetadata>;
+  downloadFile: (key: string) => Promise<{ url: string }>;
+  deleteFile: (key: string) => Promise<{ success: boolean }>;
+}
+```
+
+### uploadFile(file, options?)
+
+ファイルをS3にアップロードし、メタデータを返します。内部でFileをBase64に変換してpostMessage経由で送信し、presigned PUT URLを取得してS3に直接PUTします。
+
+```tsx
+const { uploadFile } = useFileUpload();
+
+const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+
+  const metadata = await uploadFile(file, {
+    fieldId: 'document_file',  // 必須: フィールドコード
+    formId: 'FORM_ID',         // オプション: データベースID
+    answerId: 'ANSWER_ID',     // オプション: レコードID
+  });
+
+  console.log(metadata.key);        // ストレージキー
+  console.log(metadata.fileName);   // ファイル名
+  console.log(metadata.mimeType);   // MIME タイプ
+  console.log(metadata.size);       // ファイルサイズ（バイト）
+  console.log(metadata.uploadedAt); // アップロード時刻（ISO 8601）
+};
+```
+
+**パラメータ**:
+
+| パラメータ | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| `file` | `File` | Yes | ブラウザのFileオブジェクト |
+| `options.fieldId` | `string` | Yes | フィールドコード（デフォルト: `'attachments'`） |
+| `options.formId` | `string` | No | データベースID（per-database権限検証用） |
+| `options.answerId` | `string` | No | レコードID |
+
+**戻り値**: `Promise<FileMetadata>`
+
+```typescript
+interface FileMetadata {
+  key: string;           // ストレージキー（ダウンロード・削除時に使用）
+  fileName: string;      // ファイル名
+  mimeType: string;      // MIME タイプ
+  size: number;          // ファイルサイズ（バイト）
+  uploadedAt: string;    // アップロード時刻（ISO 8601）
+}
+```
+
+**制約**:
+- ファイルサイズ上限: 100MB（システム上限）。フィールド定義の `maxSizeMB` で個別に制限可能
+- ブロックされるMIMEタイプ: `text/html`, `application/javascript` 等（XSS防止）
+- presigned URLの有効期限: 5分
+- タイムアウト: 60秒（iframe postMessage）
+
+### downloadFile(key)
+
+ストレージのファイルをダウンロードします。署名付きURL（15分有効）を取得し、新規タブで開きます。
+
+```tsx
+const { downloadFile } = useFileUpload();
+
+const handleDownload = async () => {
+  const fileKey = record?.values?.document_file?.key;
+  if (fileKey) {
+    const result = await downloadFile(fileKey);
+    // → 新規タブでファイルが開く / ダウンロードされる
+    // result.url: 署名付きURL
+  }
+};
+```
+
+| パラメータ | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| `key` | `string` | Yes | ストレージキー（`uploadFile` の戻り値 `.key`） |
+
+**戻り値**: `Promise<{ url: string }>` — 署名付きURL（15分有効）
+
+### deleteFile(key)
+
+ストレージ上のファイルを削除します。削除後はレコード側でもファイルフィールドを `null` に更新してください。
+
+```tsx
+const { deleteFile } = useFileUpload();
+const mutation = useMutation(formId);
+
+const handleDelete = async () => {
+  const fileKey = record?.values?.document_file?.key;
+  if (fileKey) {
+    await deleteFile(fileKey);
+    // レコード更新でファイル参照を除去
+    await mutation.update(answerId, { document_file: null });
+  }
+};
+```
+
+| パラメータ | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| `key` | `string` | Yes | ストレージキー |
+
+**戻り値**: `Promise<{ success: boolean }>`
+
+### 完全サンプル: ファイルアップロード画面
+
+```tsx
+import React, { useRef } from 'react';
+import { useRecord, useMutation, useFileUpload, useExecutionContext } from '@awll/sdk';
+
+export default function FileUploadDemo() {
+  const { params } = useExecutionContext();
+  const formId = params.formId;
+  const answerId = params.answerId;
+  const { data: record } = useRecord(formId, answerId);
+  const mutation = useMutation(formId);
+  const { uploadFile, downloadFile, deleteFile } = useFileUpload();
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const metadata = await uploadFile(file, { fieldId: 'attachment', formId, answerId });
+      await mutation.update(answerId, { attachment: metadata });
+      alert('アップロード完了: ' + metadata.fileName);
+    } catch (err) {
+      alert('アップロード失敗: ' + (err as Error).message);
+    }
+  };
+
+  const handleDownload = async () => {
+    const key = record?.values?.attachment?.key;
+    if (key) await downloadFile(key);
+  };
+
+  const handleDelete = async () => {
+    const key = record?.values?.attachment?.key;
+    if (key) {
+      await deleteFile(key);
+      await mutation.update(answerId, { attachment: null });
+    }
+  };
+
+  const attachment = record?.values?.attachment;
+  return (
+    <div>
+      <h2>ファイル管理</h2>
+      {attachment ? (
+        <div>
+          <p>{attachment.fileName} ({(attachment.size / 1024).toFixed(1)} KB)</p>
+          <button onClick={handleDownload}>ダウンロード</button>
+          <button onClick={handleDelete} style={{ marginLeft: 8 }}>削除</button>
+        </div>
+      ) : (
+        <input type="file" ref={inputRef} onChange={handleUpload} />
+      )}
+    </div>
+  );
+}
+```
+
+### 注意事項
+
+1. **Base64変換**: iframe内でFileオブジェクトを直接postMessageで送信できないため、内部でBase64に変換しています。100MBを超えるファイルはメモリ制約でエラーになる可能性があります。
+2. **ファイル名サニタイズ**: バックエンド側でパストラバーサル・Content-Dispositionインジェクション防止のサニタイズが自動適用されます。
+3. **暗号化**: アップロードされたファイルはサーバーサイド暗号化で自動暗号化されます。
+4. **テナント分離**: S3キーの `tenants/{tenantCode}/` プレフィックスにより、テナント間のファイルアクセスは自動的にブロックされます。
+5. **権限**: アップロードには `FORM_ANSWER:WRITE`、ダウンロードには `FORM_ANSWER:READ` 権限が必要です。
+
+---
+
 ## サブテーブル（ARRAY型）データ取得のベストプラクティス
 
 ### 重要: useRecords はサブテーブルの完全なデータを保証しない
@@ -1210,16 +1390,16 @@ const { data: subtasks } = useNodes({
 
 | 操作 | やること | ビジネスユーザーへの反映 |
 |------|---------|:--:|
-| **publishScreen** | DynamoDBのステータスをPUBLISHEDに変更するだけ | ❌ 反映されない |
-| **compileScreen** | TSX/JSXをesbuildでIIFEバンドルに変換 → compiledCodeをDynamoDBに保存 | ❌ 反映されない |
-| **deployScreen** | compiledCodeをS3にアップロード → CloudFrontキャッシュ無効化 → 内部でpublishも実行 | ✅ 反映される |
+| **publishScreen** | データストアのステータスをPUBLISHEDに変更するだけ | ❌ 反映されない |
+| **compileScreen** | TSX/JSXをesbuildでIIFEバンドルに変換 → compiledCodeをデータストアに保存 | ❌ 反映されない |
+| **deployScreen** | compiledCodeをCDNにアップロード → キャッシュ無効化 → 内部でpublishも実行 | ✅ 反映される |
 
 ### 必須手順
 
 ```
 1. コード編集 (saveScreenFile / updateScreen)
 2. compileScreen ← コンパイル必須（スキップ不可）
-3. deployScreen  ← S3アップロード + CloudFront無効化 + 自動publish
+3. deployScreen  ← CDNアップロード + キャッシュ無効化 + 自動publish
 4. ビジネスユーザーがCDN経由でアクセス可能
 ```
 
@@ -1231,7 +1411,7 @@ const { data: subtasks } = useNodes({
 |--------------|------|-----------|
 | publishScreenだけ実行 | ビジネスユーザーに反映されない | compileScreen → deployScreen |
 | コード修正後にdeployScreenだけ実行 | 古いcompiledCodeがデプロイされる | compileScreen → deployScreen |
-| compileScreenだけ実行 | DynamoDBにのみ保存、S3未反映 | compileScreen → deployScreen |
+| compileScreenだけ実行 | データストアにのみ保存、CDN未反映 | compileScreen → deployScreen |
 
 ---
 
