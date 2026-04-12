@@ -895,6 +895,144 @@ await deleteNode(answerId, rowId);
 
 ---
 
+## サブテーブル行の削除ボタン実装パターン
+
+サブテーブル（サブレコード）の削除ボタン実装は迷いやすいポイントです。以下の3点に注意してください:
+1. **`useNodeMutation` の `deleteNode` を使う**（`useMutation` ではない）
+2. **削除後に `refetch()` で一覧を再取得する**
+3. **確認ダイアログを挟む**（CASCADE削除で子孫ノードも全削除されるため）
+
+### 基本パターン: テーブル行の削除ボタン
+
+```tsx
+import React from 'react';
+import { useRecord, useNodes, useNodeMutation, useExecutionContext } from '@awll/sdk';
+
+export default function TaskManager() {
+  const { params } = useExecutionContext();
+  const formId = params.formId;
+  const answerId = params.answerId;
+  const { data: record } = useRecord(formId, answerId);
+  const { data: tasks, isLoading, refetch } = useNodes({
+    answerId,
+    depth: 1,
+    fieldCode: 'tasks',
+  });
+  const { createNode, deleteNode, deleteResult } = useNodeMutation();
+
+  // 削除ハンドラ
+  const handleDelete = async (rowId: string, taskName: string) => {
+    if (!confirm(`「${taskName}」を削除しますか？\n※ 子データも全て削除されます`)) return;
+    try {
+      await deleteNode(answerId, rowId, formId);  // formId推奨（パフォーマンス向上）
+      refetch();  // ← 必須: 削除後にノード一覧を再取得
+    } catch (err) {
+      alert('削除に失敗しました: ' + (err as Error).message);
+    }
+  };
+
+  // 追加ハンドラ
+  const handleAdd = async () => {
+    const rootNodeId = record?.rootNodeId || answerId;
+    await createNode(answerId, {
+      parentRowId: rootNodeId,
+      fieldCode: 'tasks',
+      data: { task_name: '新規タスク', status: 'todo' },
+      formId,
+    });
+    refetch();
+  };
+
+  if (isLoading) return <div>読み込み中...</div>;
+
+  return (
+    <div>
+      <h2>タスク一覧 ({tasks.length}件)</h2>
+      <button onClick={handleAdd}>+ 追加</button>
+      <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 8 }}>
+        <thead>
+          <tr style={{ borderBottom: '2px solid #e0e0e0' }}>
+            <th style={{ padding: 8, textAlign: 'left' }}>タスク名</th>
+            <th style={{ padding: 8, textAlign: 'left' }}>ステータス</th>
+            <th style={{ padding: 8, width: 80 }}>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {tasks.map((node) => (
+            <tr key={node.rowId} style={{ borderBottom: '1px solid #f0f0f0' }}>
+              <td style={{ padding: 8 }}>{node.data?.task_name}</td>
+              <td style={{ padding: 8 }}>{node.data?.status}</td>
+              <td style={{ padding: 8, textAlign: 'center' }}>
+                <button
+                  onClick={() => handleDelete(node.rowId, node.data?.task_name || '')}
+                  disabled={deleteResult.isLoading}
+                  style={{ color: 'red', cursor: 'pointer' }}
+                >
+                  削除
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+```
+
+### deleteNode の引数
+
+```typescript
+await deleteNode(answerId, rowId, formId?);
+```
+
+| 引数 | 型 | 必須 | 説明 |
+|------|-----|------|------|
+| `answerId` | `string` | Yes | レコードID |
+| `rowId` | `string` | Yes | 削除するノードの `rowId`（`useNodes` で取得） |
+| `formId` | `string` | No | データベースID（指定推奨 — 内部の逆引きScanを回避しパフォーマンス向上） |
+
+### よくある間違い
+
+| ❌ 間違い | ✅ 正しい | 説明 |
+|-----------|----------|------|
+| `mutation.delete(answerId)` | `deleteNode(answerId, rowId)` | `useMutation.delete` はルートレコード**全体**を削除する |
+| `deleteNode(rowId)` | `deleteNode(answerId, rowId)` | 第1引数は `answerId`、第2引数が `rowId` |
+| 削除後に `refetch()` を忘れる | `await deleteNode(...); refetch();` | `refetch()` しないと画面に削除済み行が残る |
+| `useRecord` の `answerId` で削除 | `useNodes` の `node.rowId` で削除 | `answerId` はレコード全体のID、`rowId` はサブテーブル行のID |
+
+### 編集 + 削除の組み合わせパターン
+
+```tsx
+// 各行にインライン編集 + 削除ボタンを配置する例
+const handleUpdate = async (rowId: string, newStatus: string) => {
+  await updateNode(answerId, rowId, {
+    data: { status: newStatus },  // シャローマージ: statusのみ更新、他フィールドは保持
+    formId,
+  });
+  refetch();
+};
+
+// JSX内
+<td>
+  <select
+    value={node.data?.status}
+    onChange={(e) => handleUpdate(node.rowId, e.target.value)}
+  >
+    <option value="todo">未着手</option>
+    <option value="in_progress">進行中</option>
+    <option value="done">完了</option>
+  </select>
+</td>
+<td>
+  <button onClick={() => handleDelete(node.rowId, node.data?.task_name)}>
+    削除
+  </button>
+</td>
+```
+
+---
+
 ## useNavigation()
 
 画面間遷移を行うReact Hook。iframe内の画面コードからホスト側のルーティングを制御します。
