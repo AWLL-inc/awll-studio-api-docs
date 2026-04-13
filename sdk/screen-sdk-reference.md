@@ -1336,14 +1336,14 @@ const handleDownload = async () => {
 
 ```tsx
 const { deleteFile } = useFileUpload();
-const mutation = useMutation(formId);
+const updateMutation = useMutation('update');
 
 const handleDelete = async () => {
   const fileKey = record?.values?.document_file?.key;
   if (fileKey) {
     await deleteFile(fileKey);
     // レコード更新でファイル参照を除去
-    await mutation.update(answerId, { document_file: null });
+    await updateMutation.mutate({ formId, recordId: answerId, answerData: { document_file: null } });
   }
 };
 ```
@@ -1365,7 +1365,7 @@ export default function FileUploadDemo() {
   const formId = params.formId;
   const answerId = params.answerId;
   const { data: record } = useRecord(formId, answerId);
-  const mutation = useMutation(formId);
+  const updateMutation = useMutation('update');
   const { uploadFile, downloadFile, deleteFile } = useFileUpload();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -1374,7 +1374,8 @@ export default function FileUploadDemo() {
     if (!file) return;
     try {
       const metadata = await uploadFile(file, { fieldId: 'attachment', formId, answerId });
-      await mutation.update(answerId, { attachment: metadata });
+      // アップロード成功 → レコードにメタデータを保存
+      await updateMutation.mutate({ formId, recordId: answerId, answerData: { attachment: metadata } });
       alert('アップロード完了: ' + metadata.fileName);
     } catch (err) {
       alert('アップロード失敗: ' + (err as Error).message);
@@ -1390,7 +1391,7 @@ export default function FileUploadDemo() {
     const key = record?.values?.attachment?.key;
     if (key) {
       await deleteFile(key);
-      await mutation.update(answerId, { attachment: null });
+      await updateMutation.mutate({ formId, recordId: answerId, answerData: { attachment: null } });
     }
   };
 
@@ -1550,6 +1551,144 @@ const { data: subtasks } = useNodes({
 | publishScreenだけ実行 | ビジネスユーザーに反映されない | compileScreen → deployScreen |
 | コード修正後にdeployScreenだけ実行 | 古いcompiledCodeがデプロイされる | compileScreen → deployScreen |
 | compileScreenだけ実行 | データストアにのみ保存、CDN未反映 | compileScreen → deployScreen |
+
+---
+
+## 画面開発でよくある つまづきポイント
+
+実際のテナント構築で判明した注意点をまとめます。
+
+### 1. useMutation の呼び出し方を間違える
+
+画面コード（iframe SDK）では **`useMutation('操作名')` + `.mutate()`** が正しい形式です。
+
+```tsx
+// ❌ NG: フロントエンド本体のAPI — iframe SDKでは create is not a function
+const { create, update, remove } = useMutation();
+await create({ formId, data: { name: '新規' } });
+
+// ✅ OK: iframe SDK の正しい呼び方
+const createMutation = useMutation('create');
+await createMutation.mutate({ formId, answerData: { name: '新規' } });
+```
+
+**特に注意**:
+- mutate に渡すキーは **`answerData`**（`data` ではない）
+- `useMutation()` 引数なしの `{create, update, remove}` 形式は**画面コードでは動作しない**
+
+### 2. useRecords の呼び出し形式
+
+`useRecords` は文字列とオブジェクトの両方を受け付けますが、**オブジェクト形式を推奨**します。
+
+```tsx
+// ⚠️ 動くが、ページネーション制御できない
+const { data } = useRecords(FORM_ID);
+
+// ✅ 推奨: ページネーション指定可能
+const { data, total } = useRecords({
+  formId: FORM_ID,
+  pagination: { page: 1, pageSize: 200 },
+});
+```
+
+`data` は配列として直接返ります（`.items` は不要）。
+
+### 3. useRecord のデータアクセス
+
+```tsx
+const { data: record } = useRecord(FORM_ID, recordId);
+
+// フィールドアクセス
+const name = record?.values?.name;
+
+// answerId（レコードID）
+const answerId = record?.answerId;
+
+// ルートノードID（サブテーブル操作時に必要）
+const rootNodeId = record?.rootNodeId || record?.answerId;
+```
+
+### 4. PATCH API の path に先頭 `/` を付けない
+
+REST APIを直接呼ぶ場合（画面SDKではなくMCP等から）:
+
+```json
+// ❌ NG: `/company_url` というフィールド名で保存されてしまう
+{ "operations": [{ "op": "replace", "path": "/company_url", "value": "https://..." }] }
+
+// ✅ OK: `company_url` フィールドが正しく更新される
+{ "operations": [{ "op": "replace", "path": "company_url", "value": "https://..." }] }
+```
+
+- `If-Match` ヘッダー必須（楽観的ロック、レコード取得時のバージョンを指定）
+- ARRAYフィールド（サブテーブル）はPATCHではなくNodes APIで操作
+
+### 5. 新規レコード作成の完全パターン
+
+```tsx
+import React, { useState } from 'react';
+import { useRecords, useMutation, useNavigation, useExecutionContext } from '@awll/sdk';
+
+export default function CreateRecordScreen() {
+  const { params } = useExecutionContext();
+  const formId = params.formId;
+  const { goBack } = useNavigation();
+  const { data: records, total } = useRecords({ formId, pagination: { page: 1, pageSize: 20 } });
+  const createMutation = useMutation('create');
+  const [formData, setFormData] = useState({ name: '', status: 'new' });
+
+  const handleCreate = async () => {
+    try {
+      const result = await createMutation.mutate({
+        formId,
+        answerData: formData,  // ← answerData（dataではない）
+      });
+      alert('作成完了: ' + result.recordId);
+      // useRecords のデータは自動再取得される
+    } catch (err) {
+      alert('作成失敗: ' + (err as Error).message);
+    }
+  };
+
+  return (
+    <div>
+      <h2>新規作成</h2>
+      <input
+        value={formData.name}
+        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+        placeholder="名前"
+      />
+      <select
+        value={formData.status}
+        onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+      >
+        <option value="new">新規</option>
+        <option value="active">有効</option>
+      </select>
+      <button onClick={handleCreate} disabled={createMutation.isLoading}>
+        {createMutation.isLoading ? '作成中...' : '作成'}
+      </button>
+      <hr />
+      <h3>既存レコード ({total}件)</h3>
+      <ul>
+        {(records || []).map((r) => (
+          <li key={r.answerId}>{r.values?.name || r.searchableFields?.name}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+```
+
+### 6. フォーム定義の更新（PUT）での注意
+
+- `description: null` を含めるとエラー → 省略するか空文字 `""` を使う
+- 既存フィールドを**全て含めて送信**する（差分更新ではなく全体置換）
+- `fieldRecordId`（ULID）と `order` は必須 — 欠如するとFormBuilder UIが壊れる
+
+### 7. 画面のフォルダ移動後はデプロイが必要
+
+`moveScreen` でフォルダ移動すると `compiledCode` がリセットされます。移動後は `compileScreen → deployScreen` の再実行が必要です。
 
 ---
 
