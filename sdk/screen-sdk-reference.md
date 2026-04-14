@@ -382,6 +382,70 @@ const { url } = await downloadFile(record.values.photo.key);
 <img src={record.values.photo.key} />  // 表示されない
 ```
 
+### USER型フィールド（ユーザーリファレンス）の値
+
+USER型フィールドは**取得時と保存時でデータ形式が異なります**。これを混同するとデータ破損が発生します。
+
+#### 取得時（useRecord / useRecords）
+
+バックエンドがユーザーIDを自動展開し、オブジェクト形式で返します。
+
+```typescript
+// SINGLE選択モード
+record.values.assignee
+// → { userId: "uuid-123", username: "田中太郎", email: "tanaka@example.com" }
+
+// MULTIPLE選択モード
+record.values.reviewers
+// → [{ userId: "uuid-1", username: "田中", email: "..." }, { userId: "uuid-2", ... }]
+```
+
+#### 保存時（useMutation / API）
+
+**ユーザーID文字列**（UUID）で保存します。オブジェクトを渡してはいけません。
+
+```typescript
+// ✅ 正しい: ユーザーID文字列で保存
+await updateMutation.mutate({
+  formId, recordId,
+  answerData: { assignee: "uuid-123" },  // SINGLE
+});
+
+await createMutation.mutate({
+  formId,
+  answerData: { reviewers: ["uuid-1", "uuid-2"] },  // MULTIPLE
+});
+
+// ❌ 間違い: useRecordの展開済みオブジェクトをそのまま渡す
+await updateMutation.mutate({
+  formId, recordId,
+  answerData: { assignee: record.values.assignee },  // → {} に上書きされる
+});
+```
+
+> 🚨 **致命的アンチパターン**: `useRecord` の値をスプレッドして `useMutation('update')` に渡すと、USERフィールドが展開済みオブジェクト形式のまま送信され、**空オブジェクト `{}` に上書き**されます。必ずフラットフィールドのみ個別に指定してください。
+
+#### USER型フィールドの値の対応表
+
+| 操作 | 形式 | 例 |
+|------|------|-----|
+| 取得（SINGLE） | `{ userId, username, email }` | `record.values.assignee.username` で表示 |
+| 取得（MULTIPLE） | `[{ userId, username, email }, ...]` | `.map(u => u.username)` で表示 |
+| 保存（SINGLE） | `"userId"` 文字列 | `answerData: { assignee: "uuid-123" }` |
+| 保存（MULTIPLE） | `["userId", ...]` 配列 | `answerData: { reviewers: ["uuid-1", "uuid-2"] }` |
+| クリア（SINGLE） | `null` | `answerData: { assignee: null }` |
+| クリア（MULTIPLE） | `[]` | `answerData: { reviewers: [] }` |
+
+#### 表示時の注意（React Error #31 防止）
+
+```tsx
+// ❌ オブジェクトを直接レンダリング → React Error #31
+<td>{record.values.assignee}</td>
+
+// ✅ プロパティを取り出して表示
+<td>{record.values.assignee?.username ?? '-'}</td>
+```
+
 ---
 
 ## useMutation()
