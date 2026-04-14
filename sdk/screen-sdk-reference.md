@@ -1508,6 +1508,46 @@ useEffect(() => {
 
 > **注意**: 署名付きURLは**15分で有効期限が切れます**。長時間表示する画面では、タイマーで再取得するか、ユーザー操作時に都度取得してください。
 
+#### PDFのインラインプレビュー
+
+FILE型フィールドのPDFを画面内で `<iframe>` として埋め込み表示できます。
+
+> ✅ **CSP対応済み**: iframe内のCSPは署名付きURLのPDFを `<iframe>` で直接表示できるよう設定済みです。
+
+```tsx
+import React, { useState, useEffect } from 'react';
+import { useRecord, useFileUpload, useExecutionContext } from '@awll/sdk';
+
+export default function PdfPreview() {
+  const { params } = useExecutionContext();
+  const { data: record } = useRecord(params.formId, params.answerId);
+  const { downloadFile } = useFileUpload();
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const file = record?.values?.document;
+    if (file?.key && file.mimeType === 'application/pdf') {
+      downloadFile(file.key).then(({ url }) => setPdfUrl(url));
+    }
+  }, [record]);
+
+  return pdfUrl ? (
+    <iframe
+      src={pdfUrl}
+      title="PDFプレビュー"
+      style={{ width: '100%', height: 600, border: 'none' }}
+    />
+  ) : (
+    <p>PDFなし</p>
+  );
+}
+```
+
+> **注意**:
+> - ブラウザ内蔵のPDFビューアで表示されます（Chrome, Firefox, Edge, Safari対応）
+> - 高度なPDF操作（検索、注釈等）が必要な場合は PDF.js の導入を検討してください
+> - `<object>` / `<embed>` タグも許可済みですが、`<iframe>` が最も互換性が高い方法です
+
 ---
 
 ## サブテーブル（ARRAY型）データ取得のベストプラクティス
