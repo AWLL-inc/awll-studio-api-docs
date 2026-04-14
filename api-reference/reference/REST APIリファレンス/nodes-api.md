@@ -32,16 +32,17 @@
 - したがって、Nodes API の操作結果はカスタム画面（Screen SDK の `useRecords` / `useRecord`）にも反映される
 - `rebuild-index` は不要（自動同期済み）。手動で `rebuild-index` を呼ぶことも可能だが、通常は不要
 
-### 5. PUT /nodes/{rowId} は全フィールドを送ること
+### 5. PUT /nodes/{rowId} はシャローマージ（部分更新対応）
 
-- Nodes API の PUT は**全フィールド置換**。送らなかったフィールドは消える
-- 例: `name` と `category` を持つノードで `monthly_sales` だけ送ると、`name` と `category` が消失する
+- Nodes API の PUT は**シャローマージ**。送信フィールドのみ上書きされ、未送信フィールドは既存値が保持される
+- 例: `name` と `category` を持つノードで `monthly_sales` だけ送ると、`name` と `category` は保持される
+- `{ "field": null }` で明示的にnullクリアも可能
 
 ```json
-// NG: monthly_salesだけ送ると、nameとcategoryが消える
+// OK: monthly_salesだけ送ってもnameとcategoryは保持される
 { "data": { "monthly_sales": [...] } }
 
-// OK: 全フィールドを含める
+// OK: 全フィールドを含めても問題なし
 { "data": { "name": "JFS", "category": "awll_studio", "monthly_sales": [...] } }
 ```
 
@@ -282,20 +283,61 @@ curl -s -X POST \
 
 ---
 
-## PUT /api/answers/{answerId}/nodes/{rowId} — 全フィールド置換
+## PUT /api/answers/{answerId}/nodes/{rowId} — シャローマージ（部分更新対応）
 
 ノード（サブテーブル行）のデータを更新します。親ノード変更（移動）もサポート。
 
-> **⚠️ 全フィールド置換**: `data` に含まれないフィールドは消失します。
-> 変更するフィールドだけでなく、既存フィールドも全て含めて送信してください。
+> **✅ シャローマージ**: `data` に含まれるフィールドのみ上書きされ、未送信フィールドは既存値が保持されます。
+> - `{ "field": null }` → 明示的にnullクリア
+> - `{}` → 既存データ全保持（何も変更しない）
 >
 > **✅ answerData自動同期（Issue #1325）**: ノード更新後、`FormAnswer.answerData` は自動同期されます。
 > `rebuild-index` の手動呼び出しは通常不要です。
 
+### 🚨 CRITICAL: PUT で ARRAY型フィールドのデータを data 内に直接書き込まないこと
+
+PUT はノードの**フラットフィールド**（TEXT, NUMBER, SELECT等）を更新するためのAPIです。**ARRAY型フィールドの配列を `data` 内に直接含めてはいけません。**
+
+```
+❌ 間違い: ARRAY型フィールドの配列を data に埋め込む
+PUT /api/answers/{answerId}/nodes/{rowId}
+{ "data": { "status": "drafting", "comments": [{"name": "コメント"}] } }
+
+→ comments は JSON配列として data に埋め込まれるだけ
+→ 子ノード（depth=2）は生成されない
+→ 画面は子ノードを参照するため「コメント (0件)」と表示される（幽霊データ）
+→ v1 API の GET では見えるが、画面には表示されない
+
+✅ 正しい方法: ARRAY型フィールドの子要素は POST で子ノードとして追加
+POST /api/answers/{answerId}/nodes
+{ "parentRowId": "{親rowId}", "fieldCode": "comments", "data": {"name": "コメント"} }
+
+→ 独立した子ノード（depth=2）が作成され、画面で正しく表示される
+```
+
+**PUTとPOSTの使い分け:**
+
+| 操作 | API | 用途 |
+|------|-----|------|
+| 既存ノードのフラットフィールド更新 | `PUT /nodes/{rowId}` | status変更、テキスト更新など |
+| サブレコードに新しい行を追加 | `POST /nodes` | コメント追加、タスク追加など |
+| ノードの削除 | `DELETE /nodes/{rowId}` | 不要な行の削除 |
+
+**注意:**
+- PUT時にARRAYフィールド名（`comments`, `tasks`等）をdataに含めると、既存の子ノードへの参照（`__rowId`）が消失する可能性がある
+- PUTは変更対象のフラットフィールドのみに限定すること
+
 ### リクエスト
 
 ```json
-// ✅ 正しい（全フィールド送信）
+// ✅ 部分フィールド送信（statusのみ変更、他フィールドは保持）
+{
+  "data": {
+    "status": "完了"
+  }
+}
+
+// ✅ 全フィールド送信も可能（フラットフィールドのみ）
 {
   "data": {
     "task_name": "更新後のタスク名",
@@ -304,17 +346,18 @@ curl -s -X POST \
   }
 }
 
-// ❌ 誤り（statusだけ送ると他フィールドが消失）
+// ❌ ARRAY型フィールドを含めてはいけない
 {
   "data": {
-    "status": "完了"
+    "status": "drafting",
+    "comments": [{"name": "コメント"}]
   }
 }
 ```
 
 | フィールド | 型 | 必須 | 説明 |
 |-----------|-----|------|------|
-| data | object | Yes | **全フィールド**を含む更新データ（部分更新不可） |
+| data | object | Yes | 更新データ（変更フィールドのみ指定可能、シャローマージ） |
 | newParentRowId | string | No | 移動先の親ノードrowId（指定時にノード移動） |
 
 ### 更新が失敗する場合の代替手段
@@ -445,4 +488,10 @@ curl -s -X POST \
 
 ---
 
-**更新日**: 2026-03-30
+### Q: PUT で comments 配列を data に書き込んだが画面に表示されない
+
+**A**: PUT はフラットフィールドの更新用です。ARRAY型フィールドの子要素は `POST /api/answers/{answerId}/nodes` で子ノードとして追加してください。PUT で data 内に配列を書き込むと、JSON埋め込みデータとしてノードに保存されますが、画面は depth=2 の独立した子ノードを参照するため「0件」と表示されます。修復するには、PUT で埋め込みデータをクリアし、POST で子ノードとして再投入してください。
+
+---
+
+**更新日**: 2026-04-14
