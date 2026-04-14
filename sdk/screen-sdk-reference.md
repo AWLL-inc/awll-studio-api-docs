@@ -1340,7 +1340,7 @@ export default function InvoicePage() {
 ```tsx
 function useFileUpload(): {
   uploadFile: (file: File, options?: UploadOptions) => Promise<FileMetadata>;
-  downloadFile: (key: string) => Promise<{ url: string }>;
+  downloadFile: (key: string, forceDownload?: boolean) => Promise<{ url: string }>;
   deleteFile: (key: string) => Promise<{ success: boolean }>;
 }
 ```
@@ -1397,26 +1397,25 @@ interface FileMetadata {
 - presigned URLの有効期限: 5分
 - タイムアウト: 60秒（iframe postMessage）
 
-### downloadFile(key)
+### downloadFile(key, forceDownload?)
 
-ストレージのファイルをダウンロードします。署名付きURL（15分有効）を取得し、新規タブで開きます。
+ストレージのファイルの署名付きURL（15分有効）を取得します。
 
 ```tsx
 const { downloadFile } = useFileUpload();
 
-const handleDownload = async () => {
-  const fileKey = record?.values?.document_file?.key;
-  if (fileKey) {
-    const result = await downloadFile(fileKey);
-    // → 新規タブでファイルが開く / ダウンロードされる
-    // result.url: 署名付きURL
-  }
-};
+// ダウンロード: 新規タブで開く（デフォルト）
+await downloadFile(fileKey);            // forceDownload=true（デフォルト）
+
+// プレビュー: URLだけ取得（新規タブを開かない）
+const { url } = await downloadFile(fileKey, false);  // forceDownload=false
+// url を <img src={url}> や <iframe src={url}> で使用
 ```
 
 | パラメータ | 型 | 必須 | 説明 |
 |-----------|-----|------|------|
 | `key` | `string` | Yes | ストレージキー（`uploadFile` の戻り値 `.key`） |
+| `forceDownload` | `boolean` | No | `true`（デフォルト）: 新規タブで開く + `Content-Disposition: attachment`。`false`: URLのみ返却（プレビュー用） |
 
 **戻り値**: `Promise<{ url: string }>` — 署名付きURL（15分有効）
 
@@ -1532,7 +1531,7 @@ export default function ImagePreview() {
   useEffect(() => {
     const file = record?.values?.photo;
     if (file?.key && file.mimeType?.startsWith('image/')) {
-      downloadFile(file.key).then(({ url }) => setImageUrl(url));
+      downloadFile(file.key, false).then(({ url }) => setImageUrl(url));
     }
   }, [record]);
 
@@ -1556,7 +1555,7 @@ useEffect(() => {
   Promise.all(
     receipts
       .filter(f => f.mimeType?.startsWith('image/'))
-      .map(async f => ({ key: f.key, url: (await downloadFile(f.key)).url }))
+      .map(async f => ({ key: f.key, url: (await downloadFile(f.key, false)).url }))
   ).then(results => {
     setUrls(Object.fromEntries(results.map(r => [r.key, r.url])));
   });
@@ -1591,7 +1590,7 @@ export default function PdfPreview() {
   useEffect(() => {
     const file = record?.values?.document;
     if (file?.key && file.mimeType === 'application/pdf') {
-      downloadFile(file.key).then(({ url }) => setPdfUrl(url));
+      downloadFile(file.key, false).then(({ url }) => setPdfUrl(url));
     }
   }, [record]);
 
