@@ -1,7 +1,7 @@
 # Screen SDK API Reference
 
 **対象**: AWLL Studio画面開発者
-**最終更新**: 2026-04-01
+**最終更新**: 2026-04-14
 
 ## インポート方法
 
@@ -354,6 +354,32 @@ export default function CustomerDetail() {
     </div>
   );
 }
+```
+
+### FILE型フィールドの値
+
+`useRecord` がFILE型フィールドを含むレコードを取得すると、値は `FileMetadata` オブジェクト（または配列）として返されます。
+
+```typescript
+// 単一ファイルフィールド
+const fileValue = record.values.document;  // FileMetadata | null
+
+// 複数ファイルフィールド（allowMultiple: true）
+const filesValue = record.values.receipts; // FileMetadata[] | null
+```
+
+`FileMetadata` の構造は [useFileUpload](#usefileupload) セクションを参照してください。
+
+> ⚠️ **重要**: `FileMetadata.key` はストレージキーであり、**URLではありません**。画像表示やダウンロードには `useFileUpload().downloadFile(key)` で署名付きURLを取得してください。
+
+```tsx
+// ✅ 正しい: downloadFileで署名付きURLを取得して表示
+const { downloadFile } = useFileUpload();
+const { url } = await downloadFile(record.values.photo.key);
+// → url を <img src={url}> で使用
+
+// ❌ 間違い: keyを直接URLとして使用
+<img src={record.values.photo.key} />  // 表示されない
 ```
 
 ---
@@ -1420,6 +1446,66 @@ export default function FileUploadDemo() {
 3. **暗号化**: アップロードされたファイルはサーバーサイド暗号化で自動暗号化されます。
 4. **テナント分離**: S3キーの `tenants/{tenantCode}/` プレフィックスにより、テナント間のファイルアクセスは自動的にブロックされます。
 5. **権限**: アップロードには `FORM_ANSWER:WRITE`、ダウンロードには `FORM_ANSWER:READ` 権限が必要です。
+
+### 画像のインライン表示（img タグ）
+
+FILE型フィールドの画像を画面内で `<img>` タグとして表示するには、`downloadFile()` で署名付きURLを取得して使用します。
+
+> ✅ **CSP対応済み**: iframe内のCSPは署名付きURLの画像を直接表示できるよう設定済みです。
+
+#### 単一ファイルの画像プレビュー
+
+```tsx
+import React, { useState, useEffect } from 'react';
+import { useRecord, useFileUpload, useExecutionContext } from '@awll/sdk';
+
+export default function ImagePreview() {
+  const { params } = useExecutionContext();
+  const { data: record } = useRecord(params.formId, params.answerId);
+  const { downloadFile } = useFileUpload();
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const file = record?.values?.photo;
+    if (file?.key && file.mimeType?.startsWith('image/')) {
+      downloadFile(file.key).then(({ url }) => setImageUrl(url));
+    }
+  }, [record]);
+
+  return imageUrl ? (
+    <img src={imageUrl} alt="写真" style={{ maxWidth: '100%' }} />
+  ) : (
+    <p>画像なし</p>
+  );
+}
+```
+
+#### 複数ファイル（allowMultiple: true）の画像ギャラリー
+
+```tsx
+const files: FileMetadata[] = record?.values?.receipts || [];
+const [urls, setUrls] = useState<Record<string, string>>({});
+
+useEffect(() => {
+  if (!Array.isArray(files) || files.length === 0) return;
+  Promise.all(
+    files
+      .filter(f => f.mimeType?.startsWith('image/'))
+      .map(async f => ({ key: f.key, url: (await downloadFile(f.key)).url }))
+  ).then(results => {
+    setUrls(Object.fromEntries(results.map(r => [r.key, r.url])));
+  });
+}, [files]);
+
+// JSX
+{files.map(f => (
+  urls[f.key]
+    ? <img key={f.key} src={urls[f.key]} alt={f.fileName} style={{ maxWidth: 200 }} />
+    : <span key={f.key}>{f.fileName}</span>
+))}
+```
+
+> **注意**: 署名付きURLは**15分で有効期限が切れます**。長時間表示する画面では、タイマーで再取得するか、ユーザー操作時に都度取得してください。
 
 ---
 
