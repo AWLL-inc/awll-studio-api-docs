@@ -1483,22 +1483,23 @@ export default function ImagePreview() {
 #### 複数ファイル（allowMultiple: true）の画像ギャラリー
 
 ```tsx
-const files: FileMetadata[] = record?.values?.receipts || [];
+// ⚠️ || [] はレンダーごとに新しい配列参照を生成するため、useEffectの依存配列には使わない
+const receipts = record?.values?.receipts as FileMetadata[] | undefined;
 const [urls, setUrls] = useState<Record<string, string>>({});
 
 useEffect(() => {
-  if (!Array.isArray(files) || files.length === 0) return;
+  if (!receipts?.length) return;
   Promise.all(
-    files
+    receipts
       .filter(f => f.mimeType?.startsWith('image/'))
       .map(async f => ({ key: f.key, url: (await downloadFile(f.key)).url }))
   ).then(results => {
     setUrls(Object.fromEntries(results.map(r => [r.key, r.url])));
   });
-}, [files]);
+}, [receipts]);  // React Queryのキャッシュが同一である限り参照は安定
 
 // JSX
-{files.map(f => (
+{(receipts || []).map(f => (
   urls[f.key]
     ? <img key={f.key} src={urls[f.key]} alt={f.fileName} style={{ maxWidth: 200 }} />
     : <span key={f.key}>{f.fileName}</span>
