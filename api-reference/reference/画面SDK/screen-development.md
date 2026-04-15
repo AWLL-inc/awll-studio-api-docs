@@ -433,7 +433,7 @@ const context = useExecutionContext();
 **原因**: バックエンドAPIが応答していない
 
 **解決方法**:
-1. サーバーログを確認
+1. `docker compose logs -f backend` でログ確認
 2. ネットワーク接続確認
 3. ブラウザコンソールでエラー詳細確認
 
@@ -445,6 +445,54 @@ const context = useExecutionContext();
 1. 管理画面（`/admin/forms`）で正しいフォームIDを確認
 2. テナント・ユーザー権限を確認
 3. `useRecords`の`error`プロパティでエラー詳細確認
+
+## 画面デプロイ（CDN配信）
+
+画面を作成・更新した後、ビジネスユーザーに反映するにはデプロイが必要です。
+
+### デプロイフロー
+
+```
+createScreen → updateScreen / saveScreenFile → deployScreen → CDN配信開始
+```
+
+### 各操作の違い
+
+| 操作 | やること | ビジネスユーザーへの反映 |
+|------|---------|----------------------|
+| **publishScreen** | DynamoDBのステータスをPUBLISHEDに変更するだけ | ❌ 反映されない |
+| **compileScreen** | TSX/JSXをesbuildでバンドルに変換→DynamoDBに保存 | ❌ 反映されない |
+| **deployScreen** | 自動コンパイル→S3にアップロード→CloudFrontキャッシュ無効化→publish | ✅ 反映される |
+
+### 推奨手順
+
+#### REST API
+
+```bash
+# 新規画面作成＆デプロイ
+POST /api/v1/screens          # 画面作成
+POST /api/v1/screens/{id}/deploy   # 自動コンパイル＆デプロイ
+
+# コード更新＆デプロイ
+PUT /api/v1/screens/{id}       # コード更新
+POST /api/v1/screens/{id}/deploy   # 自動コンパイル＆デプロイ
+```
+
+#### MCP Tool
+
+```
+1. createScreen({ screenName, screenCode, sourceCode, tenantCode })
+2. deployScreen({ screenId })  ← これだけでコンパイル＆デプロイ完了
+```
+
+> **Note**: `deployScreen` は compiledCode 未生成時に自動でコンパイルを実行します。
+
+### ロールバック
+
+```
+1. getDeploymentHistory({ screenId })  ← 過去バージョン確認
+2. rollbackScreen({ screenId, version })  ← 指定バージョンにロールバック
+```
 
 ## 参考資料
 

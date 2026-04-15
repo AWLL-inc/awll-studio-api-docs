@@ -48,7 +48,7 @@
 |-----------|-----|------|-----------|------|
 | formId | string | No | - | 対象データベースID |
 | filters | SearchFilterDto[] | No | - | フィルタ条件 |
-| limit | integer | No | 100 | 取得件数 |
+| limit | integer | No | 100 | 取得件数（1〜1000に自動正規化） |
 | lastEvaluatedKey | Map<string, string> | No | - | ページネーションキー |
 
 #### SearchFilterDto
@@ -108,7 +108,7 @@
 |-----------|-----|------|-----------|------|
 | query | string | Yes | - | 検索キーワード |
 | fields | string[] | Yes | - | 検索対象フィールド |
-| limit | integer | No | 100 | 取得件数 |
+| limit | integer | No | 100 | 取得件数（1〜1000に自動正規化） |
 
 #### レスポンス (200)
 
@@ -141,7 +141,7 @@
 |-----------|-----|------|-----------|------|
 | facetFields | string[] | Yes | - | ファセット集計対象フィールド |
 | filters | SearchFilterDto[] | No | - | フィルタ条件 |
-| limit | integer | No | 100 | 取得件数 |
+| limit | integer | No | 100 | 取得件数（1〜1000に自動正規化） |
 
 #### レスポンス (200)
 
@@ -186,7 +186,7 @@
 | field | string | Yes | - | 対象フィールド |
 | min | any | Yes | - | 下限値 |
 | max | any | Yes | - | 上限値 |
-| limit | integer | No | 100 | 取得件数 |
+| limit | integer | No | 100 | 取得件数（1〜1000に自動正規化） |
 
 #### レスポンス (200)
 
@@ -376,4 +376,4 @@
 
 ---
 
-**更新日**: 2026-03-16
+**更新日**: 2026-04-15

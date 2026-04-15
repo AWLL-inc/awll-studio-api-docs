@@ -10,7 +10,8 @@
 | GET | `/api/v1/screens` | 画面一覧取得 | READ |
 | POST | `/api/v1/screens` | 画面作成 | WRITE |
 | GET | `/api/v1/screens/{screenId}` | 画面取得（DRAFT優先で最新版） | READ |
-| PUT | `/api/v1/screens/{screenId}` | 画面更新（部分更新対応） | WRITE |
+| PUT/PATCH | `/api/v1/screens/{screenId}` | 画面更新（部分更新対応） | WRITE |
+| GET | `/api/v1/screens/code/{screenCode}/published` | screenCodeで公開版画面取得 | READ |
 | DELETE | `/api/v1/screens/{screenId}` | 画面削除（論理削除） | WRITE |
 | GET | `/api/v1/screens/{screenId}/published` | 公開済み画面取得 | READ |
 | POST | `/api/v1/screens/{screenId}/publish` | 画面公開（バージョン指定） | WRITE |
@@ -34,7 +35,7 @@
 
 | パラメータ | 型 | デフォルト | 説明 |
 |-----------|-----|-----------|------|
-| `limit` | integer | 20 | 取得件数（最大100） |
+| `limit` | integer | 20 | 取得件数（最大1000） |
 | `nextToken` | string | - | ページネーショントークン |
 | `status` | string | - | フィルタ: `DRAFT` / `PUBLISHED` / `DELETED` |
 | `folder` | string | - | フォルダパスフィルタ（例: `/顧客管理`） |
@@ -69,6 +70,29 @@
 
 ---
 
+## GET /api/v1/screens/code/{screenCode}/published
+
+`screenCode` を指定して公開済み画面を取得します。`useNavigation()` による画面遷移で使用します。
+
+### パスパラメータ
+
+| パラメータ | 型 | バリデーション | 説明 |
+|-----------|-----|-------------|------|
+| screenCode | string | `^[a-z0-9][a-z0-9_]{0,48}[a-z0-9]$` | 画面コード（snake_case、1-50文字） |
+
+### レスポンス (200)
+
+`ScreenDTO` を返却。
+
+### エラー
+
+| ステータス | 説明 |
+|-----------|------|
+| 400 | screenCode形式不正 |
+| 404 | 画面が存在しない、または公開版がない |
+
+---
+
 ## POST /api/v1/screens
 
 画面を新規作成します。
@@ -93,9 +117,9 @@
 
 ---
 
-## PUT /api/v1/screens/{screenId}
+## PUT/PATCH /api/v1/screens/{screenId}
 
-画面を更新します（部分更新対応）。
+画面を更新します（部分更新対応）。PUTとPATCHは同じ動作です。DRAFT状態の画面は上書き、PUBLISHED状態の画面は新しいDRAFTバージョンが作成されます。
 
 ### リクエスト
 
@@ -137,7 +161,7 @@
 
 ## POST /api/v1/screens/{screenId}/deploy
 
-画面をCDNにデプロイします。最新DRAFTを公開。
+画面をCDNにデプロイします。最新DRAFTを公開。compiledCode未生成時は自動でコンパイルを実行します。
 
 ### リクエスト
 
@@ -162,6 +186,14 @@
   "cacheInvalidated": true
 }
 ```
+
+### エラーレスポンス
+
+| ステータス | 説明 |
+|-----------|------|
+| 400 | デプロイ失敗（DRAFTが存在しない、コンパイルエラー等） |
+| 401 | 認証エラー |
+| 403 | 権限不足 |
 
 ---
 
@@ -247,7 +279,7 @@
 
 ## POST /api/v1/screens/{screenId}/compile
 
-画面ソースコードをコンパイラでコンパイルし、コンパイル済みコードを画面定義に保存します。デプロイ前に必ず実行してください。
+画面ソースコードをesbuildでコンパイルし、コンパイル済みコードを画面定義に保存します。デプロイ前に必ず実行してください。
 
 ### リクエスト
 
@@ -642,4 +674,4 @@
 
 ---
 
-**更新日**: 2026-03-30
+**更新日**: 2026-04-15

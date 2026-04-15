@@ -168,3 +168,4 @@ templateVariables: { "customer_name": "山田太郎" }
 ---
 
 **作成日**: 2026-03-24
+**関連Issue**: #948

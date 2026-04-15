@@ -203,7 +203,7 @@
 {
   "success": true,
   "message": "パスワードをリセットしました",
-  "temporaryPassword": "********"
+  "temporaryPassword": "TempPass123!"
 }
 ```
 
@@ -291,7 +291,7 @@
 | POST | `/api/admin/script-rules/execute` | データベースルール一括実行 |
 | POST | `/api/admin/script-rules/test` | テストスクリプト実行（保存前検証） |
 
-#### バージョン管理
+#### バージョン管理（Epic #1299）
 
 | Method | Path | 説明 |
 |--------|------|------|
@@ -300,7 +300,7 @@
 | POST | `/api/admin/script-rules/{ruleId}/versions/{versionNumber}/publish` | バージョン公開（ルール有効化） |
 | POST | `/api/admin/script-rules/{ruleId}/unpublish` | ルール非公開化（実行停止） |
 
-#### スケジュール管理
+#### スケジュール管理（Epic #1299）
 
 | Method | Path | 説明 |
 |--------|------|------|
@@ -309,7 +309,7 @@
 | POST | `/api/admin/script-rules/{ruleId}/schedule/trigger` | 即時実行（次回実行時刻は変更しない） |
 | GET | `/api/admin/script-rules/{ruleId}/schedule/state` | スケジュール実行状態取得 |
 
-#### 実行履歴
+#### 実行履歴（Epic #1299）
 
 | Method | Path | 説明 |
 |--------|------|------|
@@ -657,4 +657,60 @@ POST /api/v1/forms/{formId}/answers/{answerId}/actions/{actionId}
 
 ---
 
-**更新日**: 2026-03-28
+## テナント設定 API
+
+**ベースパス**: `/api/admin/tenant-settings`
+**権限**: ADMIN ロール必須
+
+### エンドポイント一覧
+
+| Method | Path | 説明 |
+|--------|------|------|
+| GET | `/api/admin/tenant-settings/script-fetch-allowed-domains` | api.fetch 許可ドメイン取得 |
+| PUT | `/api/admin/tenant-settings/script-fetch-allowed-domains` | api.fetch 許可ドメイン更新 |
+
+---
+
+### GET /api/admin/tenant-settings/script-fetch-allowed-domains
+
+テナントの `api.fetch` 許可ドメインを取得します。
+
+#### レスポンス (200)
+
+```json
+{
+  "domains": ["api.example.com", "data.example.com"],
+  "globalDomains": ["api.openai.com", "api.anthropic.com"]
+}
+```
+
+| フィールド | 型 | 説明 |
+|-----------|-----|------|
+| domains | string[] | テナント固有の許可ドメインリスト |
+| globalDomains | string[] | グローバル設定の許可ドメインリスト（全テナント共通） |
+
+---
+
+### PUT /api/admin/tenant-settings/script-fetch-allowed-domains
+
+テナントの `api.fetch` 許可ドメインを更新します。
+
+#### リクエスト
+
+```json
+{
+  "domains": ["api.example.com", "data.example.com"]
+}
+```
+
+| フィールド | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| domains | string[] | No | 許可ドメインリスト（空配列で全削除） |
+
+#### レスポンス (200)
+
+GET と同じ `ScriptFetchAllowedDomainsResponseDto` を返却。
+
+---
+
+**更新日**: 2026-04-15

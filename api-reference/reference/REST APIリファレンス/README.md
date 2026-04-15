@@ -22,6 +22,7 @@ AWLL Studio Platform の REST API 仕様ドキュメント。
 | [webhooks-menus-api.md](./webhooks-menus-api.md) | Webhook・メニュー API |
 | [users-permissions-api.md](./users-permissions-api.md) | ユーザー・権限・招待 API |
 | [admin-api.md](./admin-api.md) | 管理者専用 API（ロール・ユーザー管理・スクリプトルール） |
+| [mail-api.md](./mail-api.md) | メール送信 API（SES経由送信・使用量管理） |
 | [corrections.md](./corrections.md) | reference版からの修正点一覧 |
 
 ## 共通仕様

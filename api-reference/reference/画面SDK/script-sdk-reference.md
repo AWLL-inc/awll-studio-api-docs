@@ -1,17 +1,15 @@
 # Script SDK API Reference
 
 **対象**: AWLL Studioスクリプト開発者
-**最終更新**: 2026-03-24
+**最終更新**: 2026-02-04
 
 ## スクリプト実行環境
 
 スクリプトは以下のタイミングで自動実行されます：
 
-- **ON_CREATE**: データベース回答が新規作成されたとき
-- **ON_UPDATE**: データベース回答が更新されたとき
-- **ON_CHANGE**: データベース回答のフィールドが変更されたとき（リアルタイム）
-- **ON_BUTTON_CLICK**: カスタムボタンがクリックされたとき
-- **SCHEDULED**: スケジュール実行（バッチ処理）
+- **ON_CREATE**: フォーム回答が新規作成されたとき
+- **ON_UPDATE**: フォーム回答が更新されたとき
+- **ON_CHANGE**: フォーム回答のフィールドが変更されたとき（リアルタイム）
 
 ## グローバル変数
 
@@ -57,71 +55,6 @@ console.log('実行ユーザー:', userId);
 record.last_modified_by = userId;
 ```
 
-### `context` (object)
-実行コンテキスト情報
-
-```javascript
-// イベントタイプ
-console.log('イベント:', context.event); // "ON_CREATE" | "ON_UPDATE" | "ON_CHANGE" | "ON_BUTTON_CLICK" | "SCHEDULED"
-
-// データベースID
-console.log('Form ID:', context.formId);
-```
-
-### `context.field` (string, ON_CHANGEのみ)
-変更されたフィールド名
-
-```javascript
-if (context.event === 'ON_CHANGE') {
-  console.log('変更フィールド:', context.field);
-  console.log('変更後の値:', context.value);
-}
-```
-
-### `context.value` (any, ON_CHANGEのみ)
-変更後の値
-
-### `context.actionId` (string, ON_BUTTON_CLICKのみ)
-クリックされたボタンのアクションID
-
-```javascript
-if (context.event === 'ON_BUTTON_CLICK') {
-  console.log('アクションID:', context.actionId); // 例: "approve"
-}
-```
-
-### `context.actionArgs` (object, ON_BUTTON_CLICKのみ)
-ボタンクリック時に確認ダイアログで入力された値
-
-```javascript
-if (context.event === 'ON_BUTTON_CLICK') {
-  const comment = context.actionArgs && context.actionArgs.comment;
-  console.log('コメント:', comment);
-}
-```
-
-### サブテーブル（ARRAYフィールド）の操作
-
-Script内でサブテーブルに行を追加できます:
-
-```javascript
-// 配列を取得（未初期化なら空配列）
-var history = record.approval_history || [];
-
-// 行を追加（承認者情報を含む）
-history.push({
-  action: '承認',
-  approver: userId,
-  comment: (context.actionArgs && context.actionArgs.comment) || '',
-  executed_at: new Date().toISOString()
-});
-
-// レコードに書き戻す
-record.approval_history = history;
-```
-
-> **注意**: `context.actionArgs?.comment` のオプショナルチェイニングは スクリプト実行環境 で動作しない場合があります。`context.actionArgs && context.actionArgs.comment` の形式を使用してください。
-
 ### `api` (object)
 API操作オブジェクト（詳細は後述）
 
@@ -137,7 +70,7 @@ API操作オブジェクト（詳細は後述）
 
 - `formId` (string, 必須): フォームID
 - `options` (object, オプション):
-  - `limit` (number): 取得件数（デフォルト: 100、1回最大: 100、累計最大: 1000）
+  - `limit` (number): 取得件数（デフォルト: 20、最大: 1000）
   - `nextToken` (string): ページネーショントークン
 
 #### 戻り値
@@ -191,7 +124,7 @@ const activeCustomers = customers.filter(c =>
 {
   id: string,           // 作成されたレコードID
   formId: string,       // フォームID
-  versionUlid: string,  // バージョンULID
+  versionId: string,    // バージョンID
   createdAt: string,    // 作成日時 (ISO 8601)
 }
 ```
@@ -332,6 +265,74 @@ if (record.status === 'cancelled') {
   });
 }
 ```
+
+---
+
+### `api.sendEmail(options)`
+
+メールを送信します（Amazon SES経由）。テンプレート変数を使用して、件名・本文を動的に生成できます。
+
+#### パラメータ
+
+- `options` (object, 必須):
+  - `to` (string, 必須): 送信先メールアドレス
+  - `subject` (string, 必須): メール件名（テンプレート変数使用可、最大200文字）
+  - `body` (string, 必須): メール本文（テンプレート変数使用可、最大10,000文字）
+  - `templateVariables` (object, オプション): テンプレート変数（`{{key}}` → value に置換）
+
+#### 戻り値
+
+```javascript
+{
+  messageId: string,  // メッセージID（UUID）
+  status: string,     // "SENT" | "FAILED"
+  error: string|null  // エラーメッセージ（失敗時のみ）
+}
+```
+
+#### 使用例
+
+```javascript
+// 基本的な使用方法
+var result = api.sendEmail({
+  to: 'user@example.com',
+  subject: 'お知らせ',
+  body: '本文です。'
+});
+console.log('送信結果:', result.status);
+
+// テンプレート変数を使用
+var result = api.sendEmail({
+  to: record.email,
+  subject: '{{customer_name}}様へのご連絡',
+  body: '{{customer_name}}様' + String.fromCharCode(10)
+    + String.fromCharCode(10) + 'いつもお世話になっております。',
+  templateVariables: {
+    customer_name: record.customer_name
+  }
+});
+
+// エラーハンドリング
+var result = api.sendEmail({
+  to: record.contact_email,
+  subject: '注文確認',
+  body: '注文番号: ' + record.order_number
+});
+
+if (result.status === 'FAILED') {
+  console.error('メール送信失敗:', result.error);
+}
+```
+
+#### 注意事項
+
+- 送信元は `noreply@awll-studio.ai` 固定
+- GraalVMスクリプト内では `\n` リテラルが使えない場合があるため、改行は `String.fromCharCode(10)` を使用
+- 送信は同期実行（レスポンスを待つ）
+- 送信形式はテキストメールのみ（HTML未対応）
+- 添付ファイル未対応
+- `api.sendEmail()` を含むAPI呼び出しは1スクリプトあたり**最大10回**に制限
+- 送信履歴は自動的に記録され、管理画面の使用量APIで確認可能
 
 ---
 
@@ -527,7 +528,7 @@ record.startDate = new Date().toISOString().split('T')[0];
 return { record: record };  // ← 正しく取得される
 ```
 
-**理由**: スクリプト実行エンジンが自動的にコードをIIFEでラップするため、スクリプト側でIIFEを使用すると**二重IIFE**になり、内側の`return`が外側に伝わりません。
+**理由**: スクリプト実行エンジン（SecureJavaScriptExecutor）が自動的にコードをIIFEでラップするため、スクリプト側でIIFEを使用すると**二重IIFE**になり、内側の`return`が外側に伝わりません。
 
 ---
 
@@ -597,7 +598,10 @@ inactiveCustomers.forEach(customer => {
 
 ### 1. コンソールログ確認
 
-管理画面の「実行ログ」からスクリプトの実行結果を確認できます。
+```bash
+# バックエンドログを確認
+docker compose logs -f backend | grep "ScriptExecution"
+```
 
 ### 2. スクリプト内でデバッグ出力
 

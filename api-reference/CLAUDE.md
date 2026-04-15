@@ -168,6 +168,22 @@ Nodes API（`POST /api/answers/{answerId}/nodes`）は以下の場合に使用:
 - ルートレベルのフィールド更新: `listNodes` でルートノード(depth=0)の rowId を取得 → `updateNode`
 - サブテーブル行の更新: `updateNode` で対象ノードを直接更新
 
+### 🚨 PUT /nodes/{rowId} で ARRAY型フィールドを data に含めてはいけない
+
+`PUT /api/answers/{answerId}/nodes/{rowId}` はフラットフィールド（TEXT, NUMBER, SELECT等）の更新専用。
+**data 内に ARRAY型フィールドの配列を書き込むと、画面から見えない「幽霊データ」になる。**
+
+```
+❌ PUT /nodes/{rowId} に ARRAY を含める
+{ "data": { "status": "drafting", "comments": [{"name": "..."}] } }
+→ data にJSON配列が埋め込まれるだけ。depth=2 の子ノードは生成されず、画面は「0件」表示
+
+✅ サブレコードの行追加は POST /nodes を使用
+POST /api/answers/{answerId}/nodes
+{ "parentRowId": "{親rowId}", "fieldCode": "comments", "data": {"name": "..."} }
+→ depth=2 の独立した子ノードが作成され、画面で正しく表示される
+```
+
 ### Nodes API を使う場合の手順
 
 ```

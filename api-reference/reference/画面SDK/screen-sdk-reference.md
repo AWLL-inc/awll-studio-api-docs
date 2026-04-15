@@ -26,7 +26,7 @@ import {
 | `useRecords(options)` | レコード一覧取得 | 実装済み |
 | `useRecord(options)` | 単一レコード取得 | 実装済み |
 | `useMutation()` | レコード作成/更新/削除 | 実装済み |
-| `useNavigation()` | 画面遷移 | 実装中 |
+| `useNavigation()` | 画面遷移 | 実装中（Issue #884） |
 | `useNodes(answerId)` | 階層データ（ノード）取得 | 未実装 |
 
 ---
@@ -167,16 +167,6 @@ const handleDelete = async (recordId) => {
   await remove({ formId: 'customer_form', recordId });
   // data は自動で最新化される（refetch不要）
 };
-```
-
-### Nodes API経由の更新とanswerDataの同期
-
-`useRecords` / `useRecord` は `answerData` を読みます。自動同期実装により、Nodes API（`PUT /api/answers/{answerId}/nodes/{rowId}`）で
-サブテーブル行を更新すると、answerData も自動同期されます。`rebuild-index` の手動呼び出しは通常不要です。データ更新後は `refetch()` で最新データを再取得してください。
-
-```tsx
-// Nodes API更新後はrefetchだけでOK（answerDataは自動同期済み）
-refetch();
 ```
 
 ### 使用例
@@ -469,7 +459,7 @@ export default function CustomerListWithDelete() {
 
 ## useNavigation()（実装中）
 
-画面遷移を実行します。現在実装中です。
+画面遷移を実行します。Issue #884 で実装中。
 
 ### 予定API
 
@@ -503,7 +493,22 @@ function useNodes(answerId: string): {
 }
 ```
 
-> 現在、カスタム画面からノードデータを取得するSDK hookは存在しません。REST API（`GET /api/answers/{answerId}/nodes`）は利用可能ですが、iframe内からの直接fetch呼び出しはCSP制約によりブロックされます。
+> 現在、カスタム画面からノードデータを取得するSDK hookは存在しません。REST API（`GET /api/answers/{answerId}/nodes`）は利用可能ですが、iframe内からは認証トークンにアクセスできないため、直接fetchで呼び出すことはできません。
+
+---
+
+## メール送信について
+
+Screen SDK（React Hooks）にはメール送信用のフックは現在提供されていません。
+
+メール送信が必要な場合は、以下の方法を使用してください：
+
+| 方法 | 用途 |
+|------|------|
+| **Script SDK** `api.sendEmail()` | スクリプトルール内でのメール自動送信（ステータス変更時の通知等） |
+| **REST API** `POST /api/v1/mail/send` | カスタムアプリケーションからの送信（ADMIN/DEVELOPER権限が必要） |
+
+詳細は [Script SDK APIリファレンス - api.sendEmail()](./script-sdk-reference.md#apisendemaioptions) および [メール送信 API](../REST%20APIリファレンス/mail-api.md) を参照してください。
 
 ---
 
@@ -588,11 +593,11 @@ iframe内のカスタム画面コード
 ```
 
 この方式により：
-- iframe内から直接APIを呼び出す必要がない（CSP制約を回避）
+- iframe内から直接APIを呼び出す必要がない
 - 認証・認可は親ウィンドウで一元管理
-- 画面コードからバックエンドの認証情報にアクセス不可
+- 画面コードからバックエンドの認証トークン（Cognito JWT）にアクセス不可
 
-> **注意**: `fetch()` での直接API呼び出しはCSPによりブロックされます。必ずSDK hookを使用してください。
+> **注意**: iframe内から `fetch()` で直接APIを呼び出しても、認証トークンが付与されないため **401 Unauthorized** になります。画面コードからトークンにはアクセスできないため、必ずSDK hookを使用してください。
 
 ---
 

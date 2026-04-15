@@ -72,6 +72,10 @@
     {
       "name": "Search",
       "description": "検索API - 高度検索、全文検索、ファセット検索、範囲検索"
+    },
+    {
+      "name": "Admin Tenant Settings",
+      "description": "管理者用テナント設定API - テナント固有の設定管理"
     }
   ],
   "paths": {
@@ -434,6 +438,92 @@
           },
           "403": {
             "description": "権限不足"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "Screens"
+        ],
+        "summary": "画面部分更新",
+        "description": "\n            画面定義を部分更新します。PUTと同じ動作です。DRAFT状態は上書き、PUBLISHED状態は新DRAFTバージョン作成。\n\n            **権限:** SCREEN_DEFINITION:WRITE\n        ",
+        "operationId": "patchScreen",
+        "parameters": [
+          {
+            "name": "screenId",
+            "in": "path",
+            "description": "画面ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateScreenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "更新成功",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScreenDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "バリデーションエラー",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScreenDTO"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "認証エラー",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScreenDTO"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "権限不足",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScreenDTO"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "画面が存在しない",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScreenDTO"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1339,6 +1429,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "formId",
+            "in": "query",
+            "description": "データベースID（searchableFields再構築用）",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -1434,6 +1533,15 @@
             "in": "path",
             "description": "行ID",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "formId",
+            "in": "query",
+            "description": "データベースID（searchableFields再構築用）",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -1685,11 +1793,12 @@
           {
             "name": "limit",
             "in": "query",
-            "description": "取得件数上限（デフォルト20、最大100）",
+            "description": "取得件数上限（デフォルト20、最大1000）",
             "required": false,
             "schema": {
               "type": "integer",
-              "format": "int32"
+              "format": "int32",
+              "maximum": 1000
             },
             "example": 20
           },
@@ -2184,11 +2293,12 @@
           {
             "name": "limit",
             "in": "query",
-            "description": "取得件数上限（デフォルト20、最大100）",
+            "description": "取得件数上限（デフォルト20、最大1000）",
             "required": false,
             "schema": {
               "type": "integer",
-              "format": "int32"
+              "format": "int32",
+              "maximum": 1000
             },
             "example": 20
           },
@@ -3111,6 +3221,48 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "depth",
+            "in": "query",
+            "description": "取得する階層の深さ",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "fieldCode",
+            "in": "query",
+            "description": "フィールドコードでフィルタ",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "取得件数上限（デフォルト100、最大1000）",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 100,
+              "maximum": 1000
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "オフセット（デフォルト0）",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 0
+            }
           }
         ],
         "responses": {
@@ -3173,6 +3325,15 @@
             "in": "path",
             "description": "回答ID",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "formId",
+            "in": "query",
+            "description": "データベースID（searchableFields再構築用）",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -4438,11 +4599,12 @@
           {
             "name": "limit",
             "in": "query",
-            "description": "取得件数上限",
+            "description": "取得件数上限（最大1000）",
             "required": false,
             "schema": {
               "type": "integer",
-              "format": "int32"
+              "format": "int32",
+              "maximum": 1000
             },
             "example": 20
           },
@@ -5319,6 +5481,300 @@
           },
           "404": {
             "description": "画面が存在しない"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/answers/{answerId}/nodes/{parentRowId}/children": {
+      "get": {
+        "tags": [
+          "Nodes"
+        ],
+        "summary": "子ノード一覧取得（ページネーション）",
+        "description": "\n            指定した親ノードの子ノードをページネーション付きで取得します。\n\n            **権限:** USER または ADMIN\n        ",
+        "operationId": "getChildNodes",
+        "parameters": [
+          {
+            "name": "answerId",
+            "in": "path",
+            "description": "回答ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "parentRowId",
+            "in": "path",
+            "description": "親ノードの行ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fieldCode",
+            "in": "query",
+            "description": "フィールドコードでフィルタ",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "取得件数上限（デフォルト100、最大1000）",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 100,
+              "maximum": 1000
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "オフセット（デフォルト0）",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "取得成功",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedNodeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "認証エラー"
+          },
+          "403": {
+            "description": "権限不足"
+          },
+          "404": {
+            "description": "親ノードが存在しない"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/answers/{answerId}/nodes/repair-orphans": {
+      "post": {
+        "tags": [
+          "Nodes"
+        ],
+        "summary": "孤立ノード修復",
+        "description": "\n            親ノードが存在しない孤立ノードを検出・修復します。\n\n            **dryRun=true（デフォルト）**: 孤立ノードの一覧を返すのみ。\n            **dryRun=false**: 孤立ノードを実際に削除します。\n\n            **権限:** ADMIN のみ\n        ",
+        "operationId": "repairOrphanNodes",
+        "parameters": [
+          {
+            "name": "answerId",
+            "in": "path",
+            "description": "回答ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "formId",
+            "in": "query",
+            "description": "データベースID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "dryRun",
+            "in": "query",
+            "description": "ドライラン（デフォルトtrue）。trueの場合は検出のみ、falseの場合は実際に修復",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "修復結果",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "orphanCount": {
+                      "type": "integer",
+                      "format": "int32",
+                      "description": "孤立ノード数"
+                    },
+                    "repaired": {
+                      "type": "boolean",
+                      "description": "修復実行済みかどうか"
+                    },
+                    "orphanRowIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "孤立ノードの行ID一覧"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "認証エラー"
+          },
+          "403": {
+            "description": "権限不足（ADMIN必須）"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/screens/code/{screenCode}/published": {
+      "get": {
+        "tags": [
+          "Screens"
+        ],
+        "summary": "公開画面をscreenCodeで取得",
+        "description": "\n            screenCodeで公開済みの画面定義を取得します。\n\n            **権限:** SCREEN_DEFINITION:READ または BUSINESS_ACCESS\n        ",
+        "operationId": "getPublishedScreenByCode",
+        "parameters": [
+          {
+            "name": "screenCode",
+            "in": "path",
+            "description": "画面コード",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_]{0,48}[a-z0-9]$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "取得成功",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScreenDTO"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "認証エラー"
+          },
+          "403": {
+            "description": "権限不足"
+          },
+          "404": {
+            "description": "画面が存在しない、または未公開"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/admin/tenant-settings/script-fetch-allowed-domains": {
+      "get": {
+        "tags": [
+          "Admin Tenant Settings"
+        ],
+        "summary": "スクリプトfetch許可ドメイン取得",
+        "description": "\n            テナントのスクリプトルールで api.fetch() が許可されているドメイン一覧を取得します。\n\n            **権限:** ADMIN\n        ",
+        "operationId": "getScriptFetchAllowedDomains",
+        "responses": {
+          "200": {
+            "description": "取得成功",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScriptFetchAllowedDomainsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "認証エラー"
+          },
+          "403": {
+            "description": "権限不足（ADMIN必須）"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Admin Tenant Settings"
+        ],
+        "summary": "スクリプトfetch許可ドメイン更新",
+        "description": "\n            テナントのスクリプトルールで api.fetch() が許可されるドメイン一覧を更新します。\n\n            **権限:** ADMIN\n        ",
+        "operationId": "updateScriptFetchAllowedDomains",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateScriptFetchAllowedDomainsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "更新成功",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScriptFetchAllowedDomainsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "バリデーションエラー"
+          },
+          "401": {
+            "description": "認証エラー"
+          },
+          "403": {
+            "description": "権限不足（ADMIN必須）"
           }
         },
         "security": [
@@ -6615,7 +7071,10 @@
           },
           "limit": {
             "type": "integer",
-            "format": "int32"
+            "format": "int32",
+            "description": "取得件数上限（1〜1000に自動正規化）",
+            "maximum": 1000,
+            "minimum": 1
           }
         },
         "required": [
@@ -6660,7 +7119,10 @@
           },
           "limit": {
             "type": "integer",
-            "format": "int32"
+            "format": "int32",
+            "description": "取得件数上限（1〜1000に自動正規化）",
+            "maximum": 1000,
+            "minimum": 1
           }
         },
         "required": [
@@ -6707,7 +7169,10 @@
           },
           "limit": {
             "type": "integer",
-            "format": "int32"
+            "format": "int32",
+            "description": "取得件数上限（1〜1000に自動正規化）",
+            "maximum": 1000,
+            "minimum": 1
           }
         },
         "required": [
@@ -6796,7 +7261,10 @@
           },
           "limit": {
             "type": "integer",
-            "format": "int32"
+            "format": "int32",
+            "description": "取得件数上限（1〜1000に自動正規化）",
+            "maximum": 1000,
+            "minimum": 1
           },
           "lastEvaluatedKey": {
             "type": "object",
@@ -8712,6 +9180,80 @@
           "version",
           "entryPoint",
           "fileCount"
+        ]
+      },
+      "PaginatedNodeResponse": {
+        "type": "object",
+        "description": "ページネーション付きノードレスポンス",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NodeResponse"
+            },
+            "description": "ノード一覧"
+          },
+          "totalCount": {
+            "type": "integer",
+            "format": "int32",
+            "description": "総件数"
+          },
+          "limit": {
+            "type": "integer",
+            "format": "int32",
+            "description": "取得件数上限"
+          },
+          "offset": {
+            "type": "integer",
+            "format": "int32",
+            "description": "オフセット"
+          }
+        },
+        "required": [
+          "items",
+          "totalCount",
+          "limit",
+          "offset"
+        ]
+      },
+      "ScriptFetchAllowedDomainsResponse": {
+        "type": "object",
+        "description": "スクリプトfetch許可ドメインレスポンス",
+        "properties": {
+          "domains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "テナント固有の許可ドメイン一覧"
+          },
+          "globalDomains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "全テナント共通の許可ドメイン一覧"
+          }
+        },
+        "required": [
+          "domains",
+          "globalDomains"
+        ]
+      },
+      "UpdateScriptFetchAllowedDomainsRequest": {
+        "type": "object",
+        "description": "スクリプトfetch許可ドメイン更新リクエスト",
+        "properties": {
+          "domains": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "テナント固有の許可ドメイン一覧"
+          }
+        },
+        "required": [
+          "domains"
         ]
       }
     },

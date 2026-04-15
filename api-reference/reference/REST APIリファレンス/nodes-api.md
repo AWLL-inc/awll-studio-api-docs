@@ -65,14 +65,16 @@
 
 | Method | Path | 説明 |
 |--------|------|------|
-| GET | `/api/answers/{answerId}/nodes` | ノードを取得（階層指定対応） |
+| GET | `/api/answers/{answerId}/nodes` | ノードを取得（フィルタ・ページネーション対応） |
 | GET | `/api/answers/{answerId}/nodes?parentRowId={rowId}` | 直接の子ノードのみ取得（1階層下） |
 | GET | `/api/answers/{answerId}/nodes?ancestorRowId={rowId}` | 配下全子孫ノードを取得 |
 | GET | `/api/answers/{answerId}/nodes/{rowId}` | ノードを取得（祖先情報含む） |
+| GET | `/api/answers/{answerId}/nodes/{parentRowId}/children` | 直接の子ノード取得（ページネーション付き） |
 | POST | `/api/answers/{answerId}/nodes` | **子ノードを作成**（ルートノード作成不可） |
 | PUT | `/api/answers/{answerId}/nodes/{rowId}` | ノードを更新 |
 | DELETE | `/api/answers/{answerId}/nodes/{rowId}` | ノードを削除（子孫も削除） |
 | POST | `/api/answers/{answerId}/nodes/{rowId}/copy` | ノードを複製 |
+| POST | `/api/answers/{answerId}/nodes/repair-orphans` | 参照切れノード検出・修復（ADMIN専用） |
 
 > **注意**: パスは `/api/answers/{answerId}/nodes` で、`/api/v1/` プレフィックスがありません。
 
@@ -84,20 +86,28 @@
 
 ### クエリパラメータ
 
-| パラメータ | 型 | 必須 | 説明 |
-|-----------|-----|------|------|
-| parentRowId | string | No | 指定ノードの**直接の子ノードのみ**取得（1階層下） |
-| ancestorRowId | string | No | 指定ノードの**配下全子孫ノード**を取得 |
+| パラメータ | 型 | 必須 | デフォルト | 説明 |
+|-----------|-----|------|-----------|------|
+| parentRowId | string | No | - | 指定ノードの**直接の子ノードのみ**取得（1階層下、GSI1最適化） |
+| ancestorRowId | string | No | - | 指定ノードの**配下全子孫ノード**を取得 |
+| depth | integer | No | - | 階層深度フィルタ（0=ルート、1=サブテーブル、2=サブサブテーブル） |
+| fieldCode | string | No | - | フィールドコードでフィルタ |
+| limit | integer | No | 100 | 取得件数上限（1〜1000） |
+| offset | integer | No | 0 | オフセット |
 
 > **注意**: `parentRowId` と `ancestorRowId` は排他です。両方指定すると 400 Bad Request になります。どちらも未指定の場合は全ノードを取得します（従来互換）。
+>
+> **レスポンス形式**: フィルタパラメータ（parentRowId/ancestorRowId/depth/fieldCode）を指定した場合は `PaginatedNodeResponse` が返却されます。パラメータなしの場合は従来互換の `List<NodeResponse>` が返却されます。
 
 ### 使い分け
 
 | パターン | ユースケース |
 |---------|------------|
-| パラメータなし | 全ノード一括取得（小規模データ向け） |
+| パラメータなし | 全ノード一括取得（小規模データ向け、`List<NodeResponse>` 返却） |
 | `?parentRowId={rowId}` | ツリーUI等で展開した階層の直下のノードだけ取得 |
 | `?ancestorRowId={rowId}` | 特定サブツリーの全データを取得（他の兄弟ツリーは除外） |
+| `?depth=1&limit=50` | 特定階層のノードをページネーション付きで取得 |
+| `?fieldCode=tasks&limit=100` | 特定フィールドコードのノードのみ取得 |
 
 ### curl例
 
@@ -224,6 +234,12 @@ curl -s -H "Authorization: Bearer $TOKEN" \
 | parentRowId | string | **Yes** | 親ノードの `rowId`。既存ノードのrowIdを正確に指定すること |
 | fieldCode | string | **Yes** | 親ノードが持つARRAY型フィールドの `fieldCode` |
 | data | object | **Yes** | ノードデータ（ARRAYフィールドのサブフィールド定義に準拠） |
+
+### クエリパラメータ
+
+| パラメータ | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| formId | string | No（推奨） | データベースID。指定すると内部のanswer_index逆引きを回避し、パフォーマンスが向上します |
 
 ### curl例
 
@@ -360,6 +376,12 @@ POST /api/answers/{answerId}/nodes
 | data | object | Yes | 更新データ（変更フィールドのみ指定可能、シャローマージ） |
 | newParentRowId | string | No | 移動先の親ノードrowId（指定時にノード移動） |
 
+### クエリパラメータ
+
+| パラメータ | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| formId | string | No（推奨） | データベースID。指定するとパフォーマンスが向上します |
+
 ### 更新が失敗する場合の代替手段
 
 1. `DELETE /api/answers/{answerId}/nodes/{rowId}` で既存ノードを削除
@@ -385,6 +407,12 @@ POST /api/answers/{answerId}/nodes
 
 ノードを削除します。**子孫ノードも連鎖削除されます。**
 
+### クエリパラメータ
+
+| パラメータ | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| formId | string | No（推奨） | データベースID。指定するとパフォーマンスが向上します |
+
 ### レスポンス (204 No Content)
 
 ---
@@ -408,6 +436,68 @@ POST /api/answers/{answerId}/nodes
   "rowId": "01KKD6GH..."
 }
 ```
+
+---
+
+## GET /api/answers/{answerId}/nodes/{parentRowId}/children
+
+指定ノードの直接の子ノードをページネーション付きで取得します（GSI1最適化）。
+
+### クエリパラメータ
+
+| パラメータ | 型 | 必須 | デフォルト | 説明 |
+|-----------|-----|------|-----------|------|
+| fieldCode | string | No | - | フィールドコードでフィルタ |
+| limit | integer | No | 100 | 取得件数上限（1〜1000） |
+| offset | integer | No | 0 | オフセット |
+
+### レスポンス (200)
+
+```json
+{
+  "items": [
+    {
+      "rowId": "01KKD3AB...",
+      "parentRowId": "01KKD2ZB8Q1D5JPFNJ30CMNKV9",
+      "answerRef": "01KKD2ZB6EPF5CR8XXS9C3EM5B",
+      "fieldCode": "tasks",
+      "depth": 1,
+      "ancestorPath": "01KKD2ZB8Q1D5JPFNJ30CMNKV9",
+      "data": { ... }
+    }
+  ],
+  "totalCount": 25,
+  "limit": 100,
+  "offset": 0
+}
+```
+
+---
+
+## POST /api/answers/{answerId}/nodes/repair-orphans
+
+参照切れ（orphan）ノードを検出・修復します。**ADMIN権限が必要です。**
+
+`FormAnswer.answerData` 内の `__rowId` 参照に対応する Node レコードが存在しない場合に、Node レコードを再構築します。
+
+### クエリパラメータ
+
+| パラメータ | 型 | 必須 | デフォルト | 説明 |
+|-----------|-----|------|-----------|------|
+| formId | string | Yes | - | データベースID |
+| dryRun | boolean | No | true | `true`: 検出のみ（修復しない）、`false`: 検出＋修復 |
+
+### レスポンス (200)
+
+修復結果（検出されたorphanノード数、修復されたノード数等）が返却されます。
+
+### エラー
+
+| Status | 原因 |
+|--------|------|
+| 400 | パラメータ不正 |
+| 403 | ADMIN権限がない |
+| 404 | 指定したレコードが存在しない |
 
 ---
 
@@ -444,6 +534,19 @@ POST /api/answers/{answerId}/nodes
   fieldCode: string | null;
   depth: number;
   data: object;
+}
+```
+
+### PaginatedNodeResponse
+
+フィルタパラメータ指定時に返却されるページネーション付きレスポンス。
+
+```typescript
+{
+  items: NodeResponse[];
+  totalCount: number;
+  limit: number;
+  offset: number;
 }
 ```
 
@@ -494,4 +597,4 @@ POST /api/answers/{answerId}/nodes
 
 ---
 
-**更新日**: 2026-04-14
+**更新日**: 2026-04-15

@@ -370,7 +370,7 @@ const filesValue = record.values.receipts; // FileMetadata[] | null
 
 `FileMetadata` の構造は [useFileUpload](#usefileupload) セクションを参照してください。
 
-> ⚠️ **重要**: `FileMetadata.key` はストレージキーであり、**URLではありません**。画像表示やダウンロードには `useFileUpload().downloadFile(key)` で署名付きURLを取得してください。
+> ⚠️ **重要**: `FileMetadata.key` はS3オブジェクトキーであり、**URLではありません**。画像表示やダウンロードには `useFileUpload().downloadFile(key)` で署名付きURLを取得してください。
 
 ```tsx
 // ✅ 正しい: downloadFileで署名付きURLを取得して表示
@@ -1335,7 +1335,7 @@ export default function InvoicePage() {
 
 ## useFileUpload()
 
-ファイルのアップロード・ダウンロード・削除を行うフックです。presigned URL方式で、ブラウザから直接ストレージにファイルをアップロードします。
+ファイルのアップロード・ダウンロード・削除を行うフックです。S3 presigned URL方式で、ブラウザから直接S3にファイルをアップロードします。
 
 ```tsx
 function useFileUpload(): {
@@ -1362,7 +1362,7 @@ const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     answerId: 'ANSWER_ID',     // オプション: レコードID
   });
 
-  console.log(metadata.key);        // ストレージキー
+  console.log(metadata.key);        // S3オブジェクトキー
   console.log(metadata.fileName);   // ファイル名
   console.log(metadata.mimeType);   // MIME タイプ
   console.log(metadata.size);       // ファイルサイズ（バイト）
@@ -1383,7 +1383,7 @@ const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
 
 ```typescript
 interface FileMetadata {
-  key: string;           // ストレージキー（ダウンロード・削除時に使用）
+  key: string;           // S3オブジェクトキー（ダウンロード・削除時に使用）
   fileName: string;      // ファイル名
   mimeType: string;      // MIME タイプ
   size: number;          // ファイルサイズ（バイト）
@@ -1399,7 +1399,7 @@ interface FileMetadata {
 
 ### downloadFile(key, forceDownload?)
 
-ストレージのファイルの署名付きURL（15分有効）を取得します。
+S3のファイルの署名付きURL（15分有効）を取得します。
 
 ```tsx
 const { downloadFile } = useFileUpload();
@@ -1414,14 +1414,14 @@ const { url } = await downloadFile(fileKey, false);  // forceDownload=false
 
 | パラメータ | 型 | 必須 | 説明 |
 |-----------|-----|------|------|
-| `key` | `string` | Yes | ストレージキー（`uploadFile` の戻り値 `.key`） |
+| `key` | `string` | Yes | S3オブジェクトキー（`uploadFile` の戻り値 `.key`） |
 | `forceDownload` | `boolean` | No | `true`（デフォルト）: 新規タブで開く + `Content-Disposition: attachment`。`false`: URLのみ返却（プレビュー用） |
 
 **戻り値**: `Promise<{ url: string }>` — 署名付きURL（15分有効）
 
 ### deleteFile(key)
 
-ストレージ上のファイルを削除します。削除後はレコード側でもファイルフィールドを `null` に更新してください。
+S3上のファイルを削除します。削除後はレコード側でもファイルフィールドを `null` に更新してください。
 
 ```tsx
 const { deleteFile } = useFileUpload();
@@ -1439,7 +1439,7 @@ const handleDelete = async () => {
 
 | パラメータ | 型 | 必須 | 説明 |
 |-----------|-----|------|------|
-| `key` | `string` | Yes | ストレージキー |
+| `key` | `string` | Yes | S3オブジェクトキー |
 
 **戻り値**: `Promise<{ success: boolean }>`
 
@@ -1506,7 +1506,7 @@ export default function FileUploadDemo() {
 
 1. **Base64変換**: iframe内でFileオブジェクトを直接postMessageで送信できないため、内部でBase64に変換しています。100MBを超えるファイルはメモリ制約でエラーになる可能性があります。
 2. **ファイル名サニタイズ**: バックエンド側でパストラバーサル・Content-Dispositionインジェクション防止のサニタイズが自動適用されます。
-3. **暗号化**: アップロードされたファイルはサーバーサイド暗号化で自動暗号化されます。
+3. **暗号化**: アップロードされたファイルはAWS KMSで自動暗号化されます。
 4. **テナント分離**: S3キーの `tenants/{tenantCode}/` プレフィックスにより、テナント間のファイルアクセスは自動的にブロックされます。
 5. **権限**: アップロードには `FORM_ANSWER:WRITE`、ダウンロードには `FORM_ANSWER:READ` 権限が必要です。
 
@@ -1514,7 +1514,7 @@ export default function FileUploadDemo() {
 
 FILE型フィールドの画像を画面内で `<img>` タグとして表示するには、`downloadFile()` で署名付きURLを取得して使用します。
 
-> ✅ **CSP対応済み**: iframe内のCSPは署名付きURLの画像を直接表示できるよう設定済みです。
+> ✅ **CSP対応済み**: iframe内のCSPは `img-src 'self' data: blob: https://*.amazonaws.com` を許可しているため、S3署名付きURLの画像を直接表示できます。
 
 #### 単一ファイルの画像プレビュー
 
@@ -1575,7 +1575,7 @@ useEffect(() => {
 
 FILE型フィールドのPDFを画面内で `<iframe>` として埋め込み表示できます。
 
-> ✅ **CSP対応済み**: iframe内のCSPは署名付きURLのPDFを `<iframe>` で直接表示できるよう設定済みです。
+> ✅ **CSP対応済み**: iframe内のCSPは `frame-src 'self' blob: https://*.amazonaws.com` を許可しているため、S3署名付きURLのPDFを `<iframe>` で直接表示できます（PR #1672 で追加）。
 
 ```tsx
 import React, { useState, useEffect } from 'react';
@@ -1609,7 +1609,7 @@ export default function PdfPreview() {
 > **注意**:
 > - ブラウザ内蔵のPDFビューアで表示されます（Chrome, Firefox, Edge, Safari対応）
 > - 高度なPDF操作（検索、注釈等）が必要な場合は PDF.js の導入を検討してください
-> - `<object>` / `<embed>` タグも許可済みですが、`<iframe>` が最も互換性が高い方法です
+> - `<object>` / `<embed>` タグも `object-src` で許可済みですが、`<iframe>` が最も互換性が高い方法です
 
 ---
 
@@ -1719,16 +1719,16 @@ const { data: subtasks } = useNodes({
 
 | 操作 | やること | ビジネスユーザーへの反映 |
 |------|---------|:--:|
-| **publishScreen** | データストアのステータスをPUBLISHEDに変更するだけ | ❌ 反映されない |
-| **compileScreen** | TSX/JSXをesbuildでIIFEバンドルに変換 → compiledCodeをデータストアに保存 | ❌ 反映されない |
-| **deployScreen** | compiledCodeをCDNにアップロード → キャッシュ無効化 → 内部でpublishも実行 | ✅ 反映される |
+| **publishScreen** | DynamoDBのステータスをPUBLISHEDに変更するだけ | ❌ 反映されない |
+| **compileScreen** | TSX/JSXをesbuildでIIFEバンドルに変換 → compiledCodeをDynamoDBに保存 | ❌ 反映されない |
+| **deployScreen** | compiledCodeをS3にアップロード → CloudFrontキャッシュ無効化 → 内部でpublishも実行 | ✅ 反映される |
 
 ### 必須手順
 
 ```
 1. コード編集 (saveScreenFile / updateScreen)
 2. compileScreen ← コンパイル必須（スキップ不可）
-3. deployScreen  ← CDNアップロード + キャッシュ無効化 + 自動publish
+3. deployScreen  ← S3アップロード + CloudFront無効化 + 自動publish
 4. ビジネスユーザーがCDN経由でアクセス可能
 ```
 
@@ -1740,7 +1740,7 @@ const { data: subtasks } = useNodes({
 |--------------|------|-----------|
 | publishScreenだけ実行 | ビジネスユーザーに反映されない | compileScreen → deployScreen |
 | コード修正後にdeployScreenだけ実行 | 古いcompiledCodeがデプロイされる | compileScreen → deployScreen |
-| compileScreenだけ実行 | データストアにのみ保存、CDN未反映 | compileScreen → deployScreen |
+| compileScreenだけ実行 | DynamoDBにのみ保存、S3未反映 | compileScreen → deployScreen |
 
 ---
 
