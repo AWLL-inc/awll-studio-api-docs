@@ -33,11 +33,11 @@
 - `eval`, `Function`（動的コード実行）
 - `setTimeout`, `setInterval`（非同期処理）
 - `require`, `process`, `global`, `globalThis`
-- `fetch`, `XMLHttpRequest`（外部HTTP通信）
+- `fetch`, `XMLHttpRequest`（ブラウザ標準の外部HTTP通信。代わりに `api.fetch()` を使用）
 - `Java.type`（ホスト言語ブリッジ）
 - ファイルI/O、ネイティブアクセス、環境変数アクセス
 
-> **外部通知が必要な場合**: スクリプトから直接外部HTTPリクエストは送信できません。外部連携（Slack通知等）が必要な場合は、Webhook機能（`POST /api/v1/webhooks`）+ 中間サーバー（サーバーレス関数等）を使用してください。メール通知のみ `api.sendEmail()` で直接送信可能です。
+> **外部API呼び出し**: ブラウザ標準の `fetch()` は使用不可ですが、`api.fetch()` で許可ドメインへの外部HTTPリクエストが可能です。許可ドメインは管理画面のテナント設定で管理します。メール送信は `api.sendEmail()` で直接送信可能です。
 
 ## グローバル変数
 
@@ -522,6 +522,93 @@ console.log('メール送信完了: 成功=' + sentCount + ', 失敗=' + failedC
 ```
 
 > **注意**: `api.sendEmail()` を含むAPI呼び出しは1スクリプトあたり**最大10回**に制限されています。大量送信が必要な場合はREST API（`POST /api/v1/mail/send`）を使用してください。
+
+---
+
+### `api.fetch(options)`
+
+許可ドメインへの外部HTTPリクエストを実行します。
+
+#### パラメータ
+
+| フィールド | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| url | string | Yes | リクエストURL（許可ドメインのみ） |
+| method | string | No | `GET`（デフォルト）または `POST` |
+| headers | object | No | リクエストヘッダー（`Host`, `Cookie`等は自動除外） |
+| body | object | No | POSTリクエストのJSON本文 |
+
+#### レスポンス
+
+| フィールド | 型 | 説明 |
+|-----------|-----|------|
+| status | number | HTTPステータスコード（エラー時は0） |
+| body | any | パース済みレスポンス（Java Map。JSからのプロパティアクセスが不安定な場合あり） |
+| bodyText | string | 生のレスポンス文字列（`JSON.parse(resp.bodyText)` で確実にJSオブジェクトに変換可能） |
+| error | string \| null | エラーメッセージ（成功時はnull） |
+
+> **推奨**: レスポンスボディのデータには `JSON.parse(resp.bodyText)` を使用してください。`resp.body` は内部的にJava Mapとして返されるため、JavaScriptからのプロパティアクセスが環境によって不安定になる場合があります。
+
+#### 使用例
+
+```javascript
+// GETリクエスト
+var resp = api.fetch({ url: "https://api.example.com/data" });
+if (resp.error) {
+  console.log("エラー:", resp.error);
+  return record;
+}
+var data = JSON.parse(resp.bodyText);
+console.log("取得データ:", data.result);
+```
+
+```javascript
+// POSTリクエスト（ヘッダー付き）
+var resp = api.fetch({
+  url: "https://api.example.com/webhook",
+  method: "POST",
+  headers: {
+    "X-API-Key": "your-api-key"
+  },
+  body: {
+    event: "record_created",
+    recordId: record.__answerId,
+    data: { name: record.name, status: record.status }
+  }
+});
+
+if (resp.status === 200) {
+  var result = JSON.parse(resp.bodyText);
+  console.log("Webhook送信成功:", result);
+} else {
+  console.log("Webhook失敗: status=" + resp.status + ", error=" + resp.error);
+}
+```
+
+#### 制約事項
+
+| 項目 | 制限 |
+|------|------|
+| 許可メソッド | GET, POST のみ |
+| 許可ドメイン | テナント設定 + グローバル設定で許可されたドメインのみ |
+| タイムアウト | 10秒 |
+| レスポンスサイズ上限 | 1MB |
+| API呼び出し上限 | 他のAPI呼び出しと合計で10回/スクリプト |
+| リダイレクト | 無効（SSRF防御のため） |
+| プライベートIP | アクセス不可（SSRF防御） |
+
+#### 許可ドメインの管理
+
+許可ドメインは管理画面のテナント設定、またはAPIで管理します：
+
+```
+GET  /api/admin/tenant-settings/script-fetch-allowed-domains
+PUT  /api/admin/tenant-settings/script-fetch-allowed-domains
+```
+
+詳細は [管理者専用 API](../api-specs/openapi/public/reference/REST%20APIリファレンス/admin-api.md) を参照。
+
+---
 
 ### パターン1: 自動採番
 
