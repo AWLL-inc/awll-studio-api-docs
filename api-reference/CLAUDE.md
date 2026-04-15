@@ -217,7 +217,7 @@ GET /api/answers/{answerId}/nodes?ancestorRowId={rowId}
 - ロールバック: `POST /api/v1/screens/{screenId}/rollback` で指定バージョンに戻す
 - ソースコードは `export default function ScreenName() { ... }` 形式
 - SDK import: `import { useRecords, useRecord, useMutation, useExecutionContext } from '@awll/sdk';`
-- iframe内で実行されるため `fetch()` での直接API呼び出しは認証トークンが付与されず401になる（画面コードからCognito JWTにはアクセス不可）
+- iframe内で実行されるため `fetch()` での直接API呼び出しは認証トークンが付与されず401になる（画面コードから認証サービスのJWTにはアクセス不可）
 
 ## Screen SDK の既知の制約
 

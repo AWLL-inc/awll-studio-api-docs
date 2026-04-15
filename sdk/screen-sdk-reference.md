@@ -1335,7 +1335,7 @@ export default function InvoicePage() {
 
 ## useFileUpload()
 
-ファイルのアップロード・ダウンロード・削除を行うフックです。S3 presigned URL方式で、ブラウザから直接S3にファイルをアップロードします。
+ファイルのアップロード・ダウンロード・削除を行うフックです。署名付きURL方式で、ブラウザから直接ストレージにファイルをアップロードします。
 
 ```tsx
 function useFileUpload(): {
@@ -1719,16 +1719,16 @@ const { data: subtasks } = useNodes({
 
 | 操作 | やること | ビジネスユーザーへの反映 |
 |------|---------|:--:|
-| **publishScreen** | DynamoDBのステータスをPUBLISHEDに変更するだけ | ❌ 反映されない |
-| **compileScreen** | TSX/JSXをesbuildでIIFEバンドルに変換 → compiledCodeをDynamoDBに保存 | ❌ 反映されない |
-| **deployScreen** | compiledCodeをS3にアップロード → CloudFrontキャッシュ無効化 → 内部でpublishも実行 | ✅ 反映される |
+| **publishScreen** | データストアのステータスをPUBLISHEDに変更するだけ | ❌ 反映されない |
+| **compileScreen** | TSX/JSXをesbuildでIIFEバンドルに変換 → compiledCodeをデータストアに保存 | ❌ 反映されない |
+| **deployScreen** | compiledCodeをCDNストレージにアップロード → CDNキャッシュ無効化 → 内部でpublishも実行 | ✅ 反映される |
 
 ### 必須手順
 
 ```
 1. コード編集 (saveScreenFile / updateScreen)
 2. compileScreen ← コンパイル必須（スキップ不可）
-3. deployScreen  ← S3アップロード + CloudFront無効化 + 自動publish
+3. deployScreen  ← CDNストレージアップロード + CDNキャッシュ無効化 + 自動publish
 4. ビジネスユーザーがCDN経由でアクセス可能
 ```
 
@@ -1740,7 +1740,7 @@ const { data: subtasks } = useNodes({
 |--------------|------|-----------|
 | publishScreenだけ実行 | ビジネスユーザーに反映されない | compileScreen → deployScreen |
 | コード修正後にdeployScreenだけ実行 | 古いcompiledCodeがデプロイされる | compileScreen → deployScreen |
-| compileScreenだけ実行 | DynamoDBにのみ保存、S3未反映 | compileScreen → deployScreen |
+| compileScreenだけ実行 | データストアにのみ保存、CDN未反映 | compileScreen → deployScreen |
 
 ---
 

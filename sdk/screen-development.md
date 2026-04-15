@@ -1114,9 +1114,9 @@ createScreen → updateScreen / saveScreenFile → deployScreen → CDN配信開
 
 | 操作 | やること | ビジネスユーザーへの反映 |
 |------|---------|----------------------|
-| **publishScreen** | DynamoDBのステータスをPUBLISHEDに変更するだけ | ❌ 反映されない |
-| **compileScreen** | TSX/JSXをesbuildでバンドルに変換→DynamoDBに保存 | ❌ 反映されない |
-| **deployScreen** | 自動コンパイル→S3にアップロード→CloudFrontキャッシュ無効化→publish | ✅ 反映される |
+| **publishScreen** | データストアのステータスをPUBLISHEDに変更するだけ | ❌ 反映されない |
+| **compileScreen** | TSX/JSXをesbuildでバンドルに変換→データストアに保存 | ❌ 反映されない |
+| **deployScreen** | 自動コンパイル→CDNストレージにアップロード→CDNキャッシュ無効化→publish | ✅ 反映される |
 
 ### 推奨手順
 
