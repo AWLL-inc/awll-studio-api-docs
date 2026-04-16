@@ -203,6 +203,25 @@ REFERENCE フィールド用のレコードサマリーを取得します。
 
 ---
 
+## fieldCode の制約事項
+
+### ⚠️ 予約語（使用禁止）
+
+`fieldCode` には以下の JavaScript Object プロトタイププロパティ名を**使用してはならない**:
+
+`constructor`, `prototype`, `__proto__`, `toString`, `hasOwnProperty`, `valueOf`, `isPrototypeOf`, `propertyIsEnumerable`, `toLocaleString`
+
+**理由**:
+`answerData[fieldCode]` でアクセスした際にプロトタイプチェーン経由で組み込みプロパティが取得され、`undefined` チェックをすり抜けて画面描画時に実行時エラー（例: `TypeError: value?.startsWith is not a function`）が発生します。
+
+**推奨**:
+業務ドメインに即した snake_case の命名に置き換える。
+- ❌ `constructor` → ✅ `construction_company` / `builder_name`
+- ❌ `toString` → ✅ `display_text` / `label`
+- ❌ `valueOf` → ✅ `value` / `numeric_value`
+
+---
+
 ## フィールド型一覧
 
 | 型 | 説明 | 値の例 |
@@ -234,4 +253,4 @@ REFERENCE フィールド用のレコードサマリーを取得します。
 
 ---
 
-**更新日**: 2026-04-15
+**更新日**: 2026-04-16

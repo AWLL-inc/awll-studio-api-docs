@@ -428,6 +428,39 @@ console.log(date.toLocaleString('ja-JP')); // "2026/2/4 19:30:00"
 - ❌ `customer-name` (kebab-case)
 - ❌ `Customer_Name` (大文字)
 
+#### ⚠️ 予約語（使用禁止）
+
+以下の JavaScript Object プロトタイププロパティ名は `fieldCode` として**使用してはならない**:
+
+| 予約語 | 回避例 |
+|--------|--------|
+| `constructor` | `construction_company` / `builder_name` |
+| `prototype` | `template` / `blueprint` |
+| `__proto__` | — |
+| `toString` | `display_text` / `label` |
+| `hasOwnProperty` | `has_property` / `owns` |
+| `valueOf` | `value` / `numeric_value` |
+| `isPrototypeOf` | — |
+| `propertyIsEnumerable` | — |
+| `toLocaleString` | `localized_text` |
+
+**理由**:
+JavaScript のオブジェクトは `Object.prototype` を継承するため、`answerData[fieldCode]` でアクセスした際に**プロトタイプチェーン経由で組み込みプロパティが取得される**。
+結果、`undefined` チェックをすり抜けて予期せぬ関数オブジェクトが値として扱われ、画面描画時に実行時エラー（例: `TypeError: value?.startsWith is not a function`）が発生する。
+
+**具体例（NG）**:
+```json
+{
+  "fieldCode": "constructor",
+  "fieldName": "施工会社",
+  "fieldType": "REFERENCE"
+}
+```
+→ 新規作成画面を開くと `TypeError` で画面が落ちる。
+
+**対応**:
+既に `constructor` 等を使用しているフォームは、**別名の fieldCode で再作成**するか、バックエンドのスキーマ編集で `fieldCode` を変更する（レコードデータの移行が必要）。
+
 ### screenCode（画面コード）
 
 - **形式**: `snake_case`
