@@ -962,7 +962,7 @@ await deleteNode(answerId, rowId);
 
 1. **シャローマージ**: `updateNode` は `data` に含まれるフィールドのみ上書きし、未送信フィールドは既存値を保持します。`{ "field": null }` で明示的にnullクリアも可能です。
 2. **CASCADE削除**: `deleteNode` は子孫ノードも全て削除します。
-3. **手動refetch**: 操作後は `useNodes` の `refetch()` を呼んで最新データを反映してください。
+3. **手動refetch**: 操作後はデータ取得フックの `refetch()` を呼んで最新データを反映してください（詳細は下記「操作後のデータ再取得パターン」参照）。
 4. **useMutationとの使い分け**:
    - `useMutation` → ルートレコード（FormAnswer）のCRUD
    - `useNodeMutation` → サブテーブル行（Node）のCRUD
@@ -985,11 +985,40 @@ await deleteNode(answerId, rowId);
 
 ---
 
+## ⚠️ 操作後のデータ再取得パターン
+
+`createNode` / `updateNode` / `deleteNode` 実行後、SDK は画面のデータを**自動更新しません**。
+データ取得方法に応じて適切な refetch を呼んでください:
+
+| データ取得フック | refetch 方法 | ユースケース |
+|-----------------|-------------|-------------|
+| `useNodes` | `const { refetch } = useNodes({...}); refetch();` | useNodes でサブテーブル行を個別取得している場合 |
+| `useRecord` | `const { refetch } = useRecord(formId, answerId); refetch();` | **useRecord の answerData 内のネスト配列でサブレコードを表示している場合（詳細画面で多い）** |
+
+```tsx
+// パターン1: useNodes で取得 → useNodes の refetch
+const { data: tasks, refetch } = useNodes({ answerId, depth: 1, fieldCode: 'tasks' });
+const { createNode } = useNodeMutation();
+await createNode(answerId, { parentRowId, fieldCode: 'tasks', data, formId });
+refetch();
+
+// パターン2: useRecord で取得（answerData内のネスト配列） → useRecord の refetch
+// ※ 詳細画面で record.values.policies[0].riders のようにネストデータを表示する場合はこちら
+const { data: record, refetch: refetchRecord } = useRecord(formId, answerId);
+const { createNode } = useNodeMutation();
+await createNode(answerId, { parentRowId, fieldCode: 'riders', data, formId });
+await refetchRecord();  // answerData 全体を再取得 → ネスト配列も即時反映
+```
+
+> ❌ **よくある失敗**: `navigateToScreen` で別画面に遷移→戻るハックはタイミング依存で不安定。必ず `refetch` を使うこと。
+
+---
+
 ## サブテーブル行の削除ボタン実装パターン
 
 サブテーブル（サブレコード）の削除ボタン実装は迷いやすいポイントです。以下の3点に注意してください:
 1. **`useNodeMutation` の `deleteNode` を使う**（`useMutation` ではない）
-2. **削除後に `refetch()` で一覧を再取得する**
+2. **削除後に `refetch()` で一覧を再取得する**（`useNodes` または `useRecord` の refetch）
 3. **確認ダイアログを挟む**（CASCADE削除で子孫ノードも全削除されるため）
 
 ### 基本パターン: テーブル行の削除ボタン
@@ -1090,6 +1119,8 @@ await deleteNode(answerId, rowId, formId?);
 | `deleteNode(rowId)` | `deleteNode(answerId, rowId)` | 第1引数は `answerId`、第2引数が `rowId` |
 | 削除後に `refetch()` を忘れる | `await deleteNode(...); refetch();` | `refetch()` しないと画面に削除済み行が残る |
 | `useRecord` の `answerId` で削除 | `useNodes` の `node.rowId` で削除 | `answerId` はレコード全体のID、`rowId` はサブテーブル行のID |
+| `useRecord` で表示しているのに `useNodes` の refetch だけ呼ぶ | `useRecord` の `refetchRecord()` を呼ぶ | answerData 内のネスト配列は `useRecord` の refetch で更新される |
+| `navigateToScreen` で画面遷移→戻るハック | `refetch()` / `refetchRecord()` を使う | タイミング依存で不安定。必ず refetch を使う |
 
 ### 編集 + 削除の組み合わせパターン
 
