@@ -27,15 +27,21 @@ AWLL Studioプラットフォームで使用されるデータ構造の完全な
 ### Screen SDKでの形式
 
 ```typescript
-interface FormRecord {
+interface FormRecord<T = Record<string, unknown>> {
   recordId: string;         // レコードID
   formRecordId: string;     // 内部識別子（システム管理用）
-  values: Record<string, unknown>;  // フィールド値
-  metadata: {
+  values: T;                // フィールド値
+  metadata?: {
     createdAt: string;      // 作成日時 (ISO 8601)
     updatedAt: string;      // 更新日時 (ISO 8601)
     createdBy: string;      // 作成者ID
+    updatedBy?: string;     // 更新者ID
   };
+  acl?: RecordACL;          // アクセス制御情報
+  children?: Array<{        // 子レコード（REFERENCE用）
+    formRecordId: string;
+    records: FormRecord[];
+  }>;
 }
 ```
 
@@ -145,12 +151,13 @@ type FieldType =
   | 'NUMBER'        // 数値
   | 'DATE'          // 日付
   | 'SELECT'        // プルダウン
-  | 'CHECKBOX'      // チェックボックス（複数選択可能）
+  | 'CHECKBOX'      // チェックボックス（単一Boolean値）
   | 'ARRAY'         // 配列フィールド（サブフィールド対応）
   | 'REFERENCE'     // 参照フィールド（他データベースへの参照）
   | 'MARKDOWN'      // マークダウン（読み取り専用テキスト）
   | 'CALCULATED'    // 計算フィールド（自動計算）
-  | 'USER';         // ユーザー選択フィールド
+  | 'USER'          // ユーザー選択フィールド
+  | 'FILE';         // ファイル添付フィールド
 
 interface FieldOption {
   value: string;            // 選択肢の値
@@ -227,7 +234,7 @@ interface ScreenDefinition {
 
 ```typescript
 interface ExecutionContext {
-  executionType: 'screen';  // 実行タイプ
+  executionType: 'screen' | 'report' | 'workflow'; // 実行タイプ
   tenant: {
     id: string;             // テナントID
     name: string;           // テナント名
@@ -238,9 +245,14 @@ interface ExecutionContext {
     email: string;          // メールアドレス
     roles: string[];        // ロール一覧
   };
-  params: Record<string, unknown>;  // URLパラメータ
-  query: Record<string, unknown>;   // クエリパラメータ
-  screenId: string;         // 画面ID
+  params: Record<string, string | undefined>;          // URLパラメータ
+  query: Record<string, string | string[] | undefined>; // クエリパラメータ
+  screenId?: string;        // 画面ID
+  reportId?: string;        // レポートID
+  screen?: {                // 画面情報
+    screenId: string;
+    screenCode: string;
+  };
   sdkVersion: string;       // SDKバージョン
   protocolVersion: string;  // プロトコルバージョン
 }
@@ -258,7 +270,7 @@ interface ScriptRule {
   tenantId: string;         // テナントID
   formId: string;           // 対象データベースID
   ruleName: string;         // ルール名
-  trigger: 'ON_CREATE' | 'ON_UPDATE'; // トリガー
+  trigger: 'ON_CREATE' | 'ON_UPDATE' | 'ON_CHANGE' | 'ON_BUTTON_CLICK' | 'SCHEDULED'; // トリガー
   scriptCode: string;       // スクリプトコード
   enabled: boolean;         // 有効フラグ
   executionOrder: number;   // 実行順序
@@ -272,6 +284,9 @@ interface ScriptRule {
 
 - **ON_CREATE**: データベース回答が新規作成されたときに実行
 - **ON_UPDATE**: データベース回答が更新されたときに実行
+- **ON_CHANGE**: フィールド値がリアルタイムに変更されたときに実行
+- **ON_BUTTON_CLICK**: カスタムアクションボタンが押されたときに実行（Issue #1137）
+- **SCHEDULED**: スケジュール実行（cron / 固定間隔）（Epic #1299）
 
 ### スクリプト作成方法
 

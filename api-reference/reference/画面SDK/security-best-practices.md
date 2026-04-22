@@ -285,7 +285,7 @@ const API_KEY = 'sk-1234567890abcdef'; // 危険！
 ### 3. パスワードの取り扱い
 
 ```tsx
-// ❌ パスワードをフォームで扱わない
+// ❌ パスワードをデータベースで扱わない
 <input type="text" value={password} onChange={...} />
 
 // ✅ パスワードはバックエンドで暗号化
@@ -356,7 +356,7 @@ if (error) {
   let message = 'エラーが発生しました';
 
   switch (error.type) {
-    case 'PERMISSION_DENIED':
+    case 'PERMISSION_ERROR':
       message = 'この操作を実行する権限がありません';
       break;
     case 'NOT_FOUND':
@@ -402,7 +402,10 @@ if (error) {
 
 1. **即座に管理者に報告**
 2. **影響範囲を特定**
-3. **ログを確認**（サーバーログでエラー・警告を検索）
+3. **ログを確認**
+   ```bash
+   docker compose logs -f backend | grep "ERROR\|WARN"
+   ```
 4. **必要に応じてアクセスを一時停止**
 
 ---

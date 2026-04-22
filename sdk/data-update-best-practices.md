@@ -84,7 +84,7 @@
 // ✅ patchAnswer で部分更新
 PATCH /api/v1/forms/{formId}/answers/{answerId}
 {
-  "patches": [
+  "operations": [
     {
       "op": "update",
       "path": "/weekly_reports[__rowId='01KN43XPPNNRY85HZGENYJE93S']",
@@ -116,7 +116,7 @@ POST /api/v1/answers/{answerId}/nodes
 // ✅ patchAnswer（ルートフィールドの部分更新）
 PATCH /api/v1/forms/{formId}/answers/{answerId}
 {
-  "patches": [
+  "operations": [
     {
       "op": "replace",
       "path": "/status",

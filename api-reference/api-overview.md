@@ -225,5 +225,5 @@
 # 競合がある場合: 412 Precondition Failed（再取得が必要）
 curl -X PATCH \
   -H "If-Match: \"01ARZ3NDEKTSV4RRFFQ69G5FAW\"" \
-  -d '{"patches": [{"op": "replace", "path": "/name", "value": "新しい名前"}]}'
+  -d '{"operations": [{"op": "replace", "path": "/name", "value": "新しい名前"}]}'
 ```

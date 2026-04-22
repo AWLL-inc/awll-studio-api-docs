@@ -29,7 +29,7 @@ import {
 
 ```typescript
 interface ExecutionContext {
-  executionType: 'screen';
+  executionType: 'screen' | 'report' | 'workflow'; // 実行タイプ
   tenant: {
     id: string;        // テナントID (例: "demo")
     name: string;      // テナント名
@@ -40,9 +40,14 @@ interface ExecutionContext {
     email: string;     // メールアドレス
     roles: string[];   // ロール一覧
   };
-  params: Record<string, unknown>;  // URLパラメータ
-  query: Record<string, unknown>;   // クエリパラメータ
-  screenId: string;                 // 画面ID
+  params: Record<string, string | undefined>;          // URLパラメータ
+  query: Record<string, string | string[] | undefined>; // クエリパラメータ
+  screenId?: string;                // 画面ID
+  reportId?: string;                // レポートID
+  screen?: {                        // 画面情報
+    screenId: string;
+    screenCode: string;
+  };
   sdkVersion: string;               // SDKバージョン
   protocolVersion: string;          // プロトコルバージョン
 }
@@ -112,11 +117,12 @@ interface UseRecordsOptions {
     page?: number;             // ページ番号（1始まり）
     pageSize?: number;         // 1ページあたりの件数（デフォルト20、最大1000）
   };
-  filters?: Record<string, unknown>;  // フィルタ条件（実装予定）
+  filter?: Record<string, unknown>;   // フィルタ条件
   sort?: {
     field: string;
-    direction: 'asc' | 'desc';
+    order: 'asc' | 'desc';
   };
+  enabled?: boolean;                   // フック有効/無効（デフォルトtrue）
 }
 ```
 
@@ -131,25 +137,29 @@ interface UseRecordsResult {
   totalPages: number;      // 総ページ数
   isLoading: boolean;      // 初回読み込み中
   isFetching: boolean;     // データ取得中
-  error: {
-    type: string;
-    message: string;
-    code: string;
-  } | null;
-  refetch: () => void;             // データ再取得
-  setPage: (page: number) => void; // ページ変更
+  error: AwllError | null;             // エラー情報
+  refetch: () => Promise<void>;        // データ再取得
+  setPage: (page: number) => void;     // ページ変更
   setPageSize: (size: number) => void; // ページサイズ変更
+  setFilters: (filters: Record<string, unknown>) => void; // フィルタ変更
+  setSort: (field: string, order: 'asc' | 'desc') => void; // ソート変更
 }
 
-interface FormRecord {
+interface FormRecord<T = Record<string, unknown>> {
   recordId: string;         // レコードID
   formRecordId: string;     // データベースレコードID
-  values: Record<string, unknown>;  // フィールド値
-  metadata: {
+  values: T;                // フィールド値
+  metadata?: {
     createdAt: string;      // 作成日時 (ISO 8601)
     updatedAt: string;      // 更新日時 (ISO 8601)
     createdBy: string;      // 作成者ID
+    updatedBy?: string;     // 更新者ID
   };
+  acl?: RecordACL;          // アクセス制御情報
+  children?: Array<{        // 子レコード（REFERENCE用）
+    formRecordId: string;
+    records: FormRecord[];
+  }>;
 }
 ```
 
@@ -760,11 +770,16 @@ interface SDKError {
 | type | 説明 |
 |------|------|
 | `VALIDATION_ERROR` | バリデーションエラー |
+| `PERMISSION_ERROR` | 権限不足 |
+| `RULE_EXECUTION_ERROR` | スクリプトルール実行エラー |
+| `CONFLICT_ERROR` | 楽観ロック競合 |
 | `NOT_FOUND` | レコードが見つからない |
-| `PERMISSION_DENIED` | 権限不足 |
 | `NETWORK_ERROR` | ネットワークエラー |
+| `INTERNAL_ERROR` | 内部エラー |
 | `TIMEOUT` | タイムアウト |
-| `UNKNOWN_ERROR` | 不明なエラー |
+| `CANCELLED` | リクエストキャンセル |
+| `PROTOCOL_VERSION_MISMATCH` | プロトコルバージョン不一致 |
+| `COMMAND_NOT_ALLOWED` | コマンド実行不許可 |
 
 ### エラーハンドリング例
 
@@ -773,7 +788,7 @@ const { data, error, isLoading } = useRecords('customer_form');
 
 if (error) {
   switch (error.type) {
-    case 'PERMISSION_DENIED':
+    case 'PERMISSION_ERROR':
       return <div>権限がありません</div>;
     case 'NOT_FOUND':
       return <div>データベースが見つかりません</div>;
@@ -919,7 +934,7 @@ function useNodeMutation(): UseNodeMutationResult
 | `createResult` | `{ isLoading, error }` | 作成操作の状態 |
 | `updateNode` | `(answerId, rowId, options) => Promise<NodeItem>` | ノード行更新 |
 | `updateResult` | `{ isLoading, error }` | 更新操作の状態 |
-| `deleteNode` | `(answerId, rowId) => Promise<void>` | ノード行削除 |
+| `deleteNode` | `(answerId, rowId, formId?) => Promise<void>` | ノード行削除 |
 | `deleteResult` | `{ isLoading, error }` | 削除操作の状態 |
 | `reset` | `() => void` | 全状態リセット |
 
@@ -930,12 +945,14 @@ function useNodeMutation(): UseNodeMutationResult
 | `parentRowId` | `string` | Yes | 親ノードのrowId |
 | `fieldCode` | `string` | Yes | ARRAYフィールドのコード |
 | `data` | `Record<string, unknown>` | Yes | ノードデータ |
+| `formId` | `string` | No | データベースID（**指定推奨** — データストアScan逆引きを回避しパフォーマンス向上。Issue #1628） |
 
 ### updateNode オプション
 
 | パラメータ | 型 | 必須 | 説明 |
 |-----------|-----|------|------|
 | `data` | `Record<string, unknown>` | Yes | ノードデータ（**シャローマージ** — 変更フィールドのみ指定可能、未送信フィールドは保持） |
+| `formId` | `string` | No | データベースID（**指定推奨** — パフォーマンス向上。Issue #1628） |
 
 ### 使用例
 
@@ -962,7 +979,7 @@ await deleteNode(answerId, rowId);
 
 1. **シャローマージ**: `updateNode` は `data` に含まれるフィールドのみ上書きし、未送信フィールドは既存値を保持します。`{ "field": null }` で明示的にnullクリアも可能です。
 2. **CASCADE削除**: `deleteNode` は子孫ノードも全て削除します。
-3. **手動refetch**: 操作後はデータ取得フックの `refetch()` を呼んで最新データを反映してください（詳細は下記「操作後のデータ再取得パターン」参照）。
+3. **手動refetch**: 操作後は `useNodes` の `refetch()` を呼んで最新データを反映してください。
 4. **useMutationとの使い分け**:
    - `useMutation` → ルートレコード（FormAnswer）のCRUD
    - `useNodeMutation` → サブテーブル行（Node）のCRUD
@@ -985,40 +1002,11 @@ await deleteNode(answerId, rowId);
 
 ---
 
-## ⚠️ 操作後のデータ再取得パターン
-
-`createNode` / `updateNode` / `deleteNode` 実行後、SDK は画面のデータを**自動更新しません**。
-データ取得方法に応じて適切な refetch を呼んでください:
-
-| データ取得フック | refetch 方法 | ユースケース |
-|-----------------|-------------|-------------|
-| `useNodes` | `const { refetch } = useNodes({...}); refetch();` | useNodes でサブテーブル行を個別取得している場合 |
-| `useRecord` | `const { refetch } = useRecord(formId, answerId); refetch();` | **useRecord の answerData 内のネスト配列でサブレコードを表示している場合（詳細画面で多い）** |
-
-```tsx
-// パターン1: useNodes で取得 → useNodes の refetch
-const { data: tasks, refetch } = useNodes({ answerId, depth: 1, fieldCode: 'tasks' });
-const { createNode } = useNodeMutation();
-await createNode(answerId, { parentRowId, fieldCode: 'tasks', data, formId });
-refetch();
-
-// パターン2: useRecord で取得（answerData内のネスト配列） → useRecord の refetch
-// ※ 詳細画面で record.values.policies[0].riders のようにネストデータを表示する場合はこちら
-const { data: record, refetch: refetchRecord } = useRecord(formId, answerId);
-const { createNode } = useNodeMutation();
-await createNode(answerId, { parentRowId, fieldCode: 'riders', data, formId });
-await refetchRecord();  // answerData 全体を再取得 → ネスト配列も即時反映
-```
-
-> ❌ **よくある失敗**: `navigateToScreen` で別画面に遷移→戻るハックはタイミング依存で不安定。必ず `refetch` を使うこと。
-
----
-
 ## サブテーブル行の削除ボタン実装パターン
 
 サブテーブル（サブレコード）の削除ボタン実装は迷いやすいポイントです。以下の3点に注意してください:
 1. **`useNodeMutation` の `deleteNode` を使う**（`useMutation` ではない）
-2. **削除後に `refetch()` で一覧を再取得する**（`useNodes` または `useRecord` の refetch）
+2. **削除後に `refetch()` で一覧を再取得する**
 3. **確認ダイアログを挟む**（CASCADE削除で子孫ノードも全削除されるため）
 
 ### 基本パターン: テーブル行の削除ボタン
@@ -1119,8 +1107,6 @@ await deleteNode(answerId, rowId, formId?);
 | `deleteNode(rowId)` | `deleteNode(answerId, rowId)` | 第1引数は `answerId`、第2引数が `rowId` |
 | 削除後に `refetch()` を忘れる | `await deleteNode(...); refetch();` | `refetch()` しないと画面に削除済み行が残る |
 | `useRecord` の `answerId` で削除 | `useNodes` の `node.rowId` で削除 | `answerId` はレコード全体のID、`rowId` はサブテーブル行のID |
-| `useRecord` で表示しているのに `useNodes` の refetch だけ呼ぶ | `useRecord` の `refetchRecord()` を呼ぶ | answerData 内のネスト配列は `useRecord` の refetch で更新される |
-| `navigateToScreen` で画面遷移→戻るハック | `refetch()` / `refetchRecord()` を使う | タイミング依存で不安定。必ず refetch を使う |
 
 ### 編集 + 削除の組み合わせパターン
 

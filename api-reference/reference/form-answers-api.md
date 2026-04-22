@@ -246,7 +246,7 @@ GET /api/v1/forms/{formId}/answers?limit=50&offset=50&sortField=createdAt&sortOr
 
 ```json
 {
-  "patches": [
+  "operations": [
     {
       "op": "replace",
       "path": "/name",

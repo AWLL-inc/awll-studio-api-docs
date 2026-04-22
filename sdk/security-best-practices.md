@@ -356,7 +356,7 @@ if (error) {
   let message = 'エラーが発生しました';
 
   switch (error.type) {
-    case 'PERMISSION_DENIED':
+    case 'PERMISSION_ERROR':
       message = 'この操作を実行する権限がありません';
       break;
     case 'NOT_FOUND':
