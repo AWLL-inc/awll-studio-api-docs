@@ -7715,7 +7715,13 @@
           },
           "roleId": {
             "type": "integer",
-            "format": "int64"
+            "format": "int64",
+            "description": "付与するロールID（2026-04-22 以降は必須）"
+          },
+          "username": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 0
           },
           "message": {
             "type": "string",
@@ -7724,7 +7730,8 @@
           }
         },
         "required": [
-          "email"
+          "email",
+          "roleId"
         ]
       },
       "BulkInviteRequestDto": {

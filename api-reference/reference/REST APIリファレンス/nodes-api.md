@@ -75,6 +75,7 @@
 | DELETE | `/api/answers/{answerId}/nodes/{rowId}` | ノードを削除（子孫も削除） |
 | POST | `/api/answers/{answerId}/nodes/{rowId}/copy` | ノードを複製 |
 | POST | `/api/answers/{answerId}/nodes/repair-orphans` | 参照切れノード検出・修復（ADMIN専用） |
+| POST | `/api/answers/{answerId}/nodes/cleanup-ghosts` | ゴースト子ノード検出・削除（ADMIN専用） |
 
 > **注意**: パスは `/api/answers/{answerId}/nodes` で、`/api/v1/` プレフィックスがありません。
 
@@ -496,6 +497,75 @@ POST /api/answers/{answerId}/nodes
 | Status | 原因 |
 |--------|------|
 | 400 | パラメータ不正 |
+| 403 | ADMIN権限がない |
+| 404 | 指定したレコードが存在しない |
+
+---
+
+## POST /api/answers/{answerId}/nodes/cleanup-ghosts
+
+ゴースト子ノードを検出・削除します。**ADMIN権限が必要です。**（2026-04-21 追加 / PR #1728）
+
+`repair-orphans` と対称の運用 API です。`FormAnswer.answerData` から `__rowId` で参照されていないのに Node テーブルに残っている「ゴースト Node」を検出し、必要に応じて削除します。
+
+| 種別 | 判定 | 動作 |
+|-----|------|------|
+| Repair（`repair-orphans`） | answerData に参照あり / Node 不在 | Node を再構築 |
+| Cleanup（`cleanup-ghosts`） | Node 存在 / answerData に参照なし | Node を削除 |
+
+### クエリパラメータ
+
+| パラメータ | 型 | 必須 | デフォルト | 説明 |
+|-----------|-----|------|-----------|------|
+| formId | string | Yes | - | データベースID |
+| dryRun | boolean | No | true | `true`: 検出のみ、`false`: 検出＋削除（chunk 単位で batchDelete） |
+
+### レスポンス (200)
+
+```json
+{
+  "answerId": "01HQ...",
+  "dryRun": true,
+  "totalNodes": 120,
+  "totalReferenced": 118,
+  "totalGhosts": 2,
+  "ghostNodes": [
+    {
+      "rowId": "01GH...",
+      "parentRowId": "01PA...",
+      "fieldCode": "career_history",
+      "depth": 1,
+      "ancestorPath": "root/career_history"
+    }
+  ],
+  "deletedRowIds": [],
+  "failedRowIds": []
+}
+```
+
+| フィールド | 型 | 説明 |
+|-----------|-----|------|
+| answerId | string | 対象レコードID |
+| dryRun | boolean | 検出のみ(true) / 削除実行(false) |
+| totalNodes | integer | 走査した全 Node 件数 |
+| totalReferenced | integer | answerData から参照されている Node 件数（rootNode を含む） |
+| totalGhosts | integer | 検出されたゴースト Node 件数 |
+| ghostNodes | GhostNodeSummary[] | ゴースト Node の概要一覧 |
+| deletedRowIds | string[] | 実際に削除された rowId（`dryRun=false` のみ） |
+| failedRowIds | string[] | 削除に失敗した rowId（chunk 単位で記録。スロットリング等） |
+
+### 運用手順（推奨）
+
+1. `dryRun=true` で件数と ghostNodes を確認する
+2. 対象件数が想定どおりであれば `dryRun=false` で実行
+3. `failedRowIds` が返った場合は時間を置いて再実行する（部分成功を維持する設計のため重複削除しても無害）
+
+### エラー
+
+| Status | 原因 |
+|--------|------|
+| 400 | パラメータ不正 |
+| 401 | 認証エラー |
 | 403 | ADMIN権限がない |
 | 404 | 指定したレコードが存在しない |
 

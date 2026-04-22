@@ -1350,6 +1350,87 @@ export default function InvoicePage() {
 
 ---
 
+## useAIGenerate()
+
+AI によるテキスト生成を行うフックです（2026-04-21 追加 / PR #1574）。
+プロンプトと任意のコンテキストデータを送信すると、バックエンド固定の system prompt と組み合わせて生成結果が返されます。
+
+```tsx
+function useAIGenerate(): {
+  generate: (options: AIGenerateRequestPayload) => Promise<AIGenerateResponsePayload>;
+  isLoading: boolean;
+  error: AwllError | null;
+  result: AIGenerateResponsePayload | null;
+}
+```
+
+### パラメータ（AIGenerateRequestPayload）
+
+| パラメータ | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| `prompt` | `string` | Yes | ユーザープロンプト（最大 10,000 文字）。`system prompt` は含まない |
+| `contextData` | `Record<string, unknown>` | No | 補助コンテキスト。**user メッセージに追記される**（system prompt には混入しない） |
+
+> **system prompt はバックエンド固定**: SDK / 画面コードから上書きできない設計です（プロンプトインジェクション防止）。
+
+### レスポンス（AIGenerateResponsePayload）
+
+| フィールド | 型 | 説明 |
+|-----------|-----|------|
+| `generatedText` | `string` | 生成されたテキスト |
+| `usage.inputTokens` | `number` | 入力トークン数 |
+| `usage.outputTokens` | `number` | 出力トークン数 |
+| `usage.model` | `string` | 実際に使用されたモデル名 |
+
+### レート制限
+
+| 単位 | 上限 |
+|------|------|
+| ユーザー | 10 回 / 分 |
+| テナント | 100 回 / 時 |
+
+上限超過時は `429` 相当のエラー（`RATE_LIMIT` 系 `AwllError`）が `error` に設定されます。
+
+### 使用例
+
+```tsx
+import { useRecord, useAIGenerate } from '@awll/sdk';
+
+export default function FeedbackDraftPage({ recordId }) {
+  const { data: record } = useRecord({ formId: 'review_form', recordId });
+  const { generate, isLoading, result, error } = useAIGenerate();
+
+  const handleDraft = async () => {
+    await generate({
+      prompt: '下記のフィードバック対象者に対する1on1コメント案を作成してください。',
+      contextData: {
+        targetName: record?.values?.target_name,
+        achievements: record?.values?.achievements,
+      },
+    });
+  };
+
+  return (
+    <div>
+      <button onClick={handleDraft} disabled={isLoading}>
+        {isLoading ? '生成中...' : 'ドラフト生成'}
+      </button>
+      {error && <p>エラー: {error.message}</p>}
+      {result && <pre>{result.generatedText}</pre>}
+    </div>
+  );
+}
+```
+
+### 注意事項
+
+1. **権限**: USER または ADMIN（ログイン済みユーザー）。
+2. **contextData の扱い**: user メッセージに追記される形のため、機密情報を入れないこと。
+3. **タイムアウト**: 120 秒。
+4. **モデル固定**: 呼び出し側からモデル指定はできません（バックエンドで既定モデルを使用）。
+
+---
+
 ## useFileUpload()
 
 ファイルのアップロード・ダウンロード・削除を行うフックです。署名付きURL方式で、ブラウザから直接ストレージにファイルをアップロードします。
