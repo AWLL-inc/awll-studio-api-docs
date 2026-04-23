@@ -3263,6 +3263,26 @@
               "format": "int32",
               "default": 0
             }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "description": "ソートフィールド（rowId, depth, fieldCode, data.{fieldName}）",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "description": "ソート順（asc / desc、デフォルト asc）",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "asc",
+              "enum": ["asc", "desc"]
+            }
           }
         ],
         "responses": {
