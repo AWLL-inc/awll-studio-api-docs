@@ -74,13 +74,14 @@ export default function MyScreen() {
 
 ---
 
-## Hook選択ガイド — useRecords vs useRecord vs useNodes
+## Hook選択ガイド — useRecords vs useRecord vs useNodes vs useSearch
 
 | Hook / API | 用途 | ARRAYフィールド（サブテーブル） |
 |------------|------|-------------------------------|
-| `useRecords` | **一覧画面** — 検索・ページネーション | **参照のみ**（`[{__rowId}]`、Projection Table） |
+| `useRecords` | **一覧画面** — 基本フィルタ + ページネーション | **参照のみ**（`[{__rowId}]`、Projection Table） |
 | `useRecord` | **詳細画面（ルートフィールド）** | **不完全** — `__rowId` 参照のみの場合あり |
 | `useNodes` | **サブテーブル取得** ✅ 推奨 | **全階層の完全データ**（Node Table） |
+| `useSearch` | **高度検索** — 12 種演算子・AND/OR・BETWEEN・loadMore | 参照のみ（Projection Table） |
 
 > ⚠️ **重要**: `useRecords` / `useRecord` はARRAYフィールドの完全データを**保証しません**。サブテーブルを表示する詳細画面では、必ず **`useNodes`** を併用してください。
 
@@ -117,14 +118,23 @@ interface UseRecordsOptions {
     page?: number;             // ページ番号（1始まり）
     pageSize?: number;         // 1ページあたりの件数（デフォルト20、最大1000）
   };
-  filter?: Record<string, unknown>;   // フィルタ条件
+  filter?: Record<string, unknown> | FilterCondition[]; // フィルタ条件
   sort?: {
     field: string;
     order: 'asc' | 'desc';
   };
   enabled?: boolean;                   // フック有効/無効（デフォルトtrue）
 }
+
+// filter の推奨形式（型安全）
+interface FilterCondition {
+  field: string;                       // フィールドコード
+  op: 'eq' | 'neq' | 'contains' | 'gte' | 'lte' | 'in';
+  value: unknown;                      // 比較値
+}
 ```
+
+> 💡 **フィルタ形式**: `Record<string, unknown>` の旧形式（完全一致のみ）と、演算子を指定できる `FilterCondition[]` の新形式の両方に対応しています。旧形式は自動で `{ field, op: 'eq', value }` に変換されます。新規実装では `FilterCondition[]` を推奨します。より高度な検索が必要な場合は `useSearch()` を使用してください。
 
 ### 戻り値
 
@@ -862,6 +872,8 @@ function useNodes(options: UseNodesOptions): UseNodesResult
 | `depth` | `number` | No | 階層の深さ（0=ルート, 1=サブテーブル, 2=サブサブテーブル） |
 | `parentRowId` | `string` | No | 親ノードのrowId（直接の子のみ取得） |
 | `fieldCode` | `string` | No | フィールドコードでフィルタ |
+| `sortBy` | `string` | No | ソートフィールド（`rowId` / `depth` / `fieldCode` / `data.{fieldName}`） |
+| `sortOrder` | `'asc' \| 'desc'` | No | ソート順（デフォルト `asc`） |
 | `limit` | `number` | No | 取得件数上限（デフォルト100、最大1000） |
 | `offset` | `number` | No | オフセット（デフォルト0） |
 | `enabled` | `boolean` | No | フック有効/無効（デフォルトtrue） |
@@ -910,7 +922,101 @@ const { data, totalCount } = useNodes({
   limit: 20,
   offset: 0,
 });
+
+// サブテーブル行を data.name の昇順でソート
+const { data } = useNodes({
+  answerId: 'answer-123',
+  depth: 1,
+  sortBy: 'data.name',
+  sortOrder: 'asc',
+});
 ```
+
+---
+
+## useSearch()
+
+高度検索フック。`POST /api/search/advanced` を利用し、12 種の演算子 / AND・OR / BETWEEN / IN / loadMore（無限スクロール）に対応。
+
+### シグネチャ
+
+```typescript
+function useSearch(options: UseSearchOptions): UseSearchResult
+```
+
+### UseSearchOptions
+
+| パラメータ | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| `formId` | `string` | No | データベースID（省略時は全データベース横断） |
+| `filters` | `SearchFilter[]` | Yes | 検索フィルタ（1 件以上） |
+| `limit` | `number` | No | 取得件数上限（デフォルト100、最大1000） |
+| `enabled` | `boolean` | No | フック有効/無効（デフォルトtrue） |
+
+### SearchFilter
+
+```typescript
+interface SearchFilter {
+  field: string;              // フィールドコード
+  operator: SearchOperator;   // 演算子
+  value: unknown;             // 比較値
+  maxValue?: unknown;         // 最大値（BETWEEN 用）
+  values?: unknown[];         // 複数値リスト（IN / NOT_IN 用）
+  logicalOperator?: 'AND' | 'OR'; // 論理演算子（デフォルト AND）
+}
+
+type SearchOperator =
+  | 'EQUALS' | 'NOT_EQUALS'
+  | 'GREATER_THAN' | 'LESS_THAN'
+  | 'GREATER_THAN_OR_EQUAL' | 'LESS_THAN_OR_EQUAL'
+  | 'CONTAINS' | 'NOT_CONTAINS' | 'STARTS_WITH'
+  | 'BETWEEN'
+  | 'IN' | 'NOT_IN';
+```
+
+### UseSearchResult
+
+| プロパティ | 型 | 説明 |
+|-----------|-----|------|
+| `data` | `Record<string, unknown>[]` | 検索結果データ |
+| `totalCount` | `number` | 総件数 |
+| `hasMore` | `boolean` | 次ページの有無 |
+| `isLoading` | `boolean` | 初回読み込み中 |
+| `isFetching` | `boolean` | 再取得 or loadMore 中 |
+| `error` | `AwllError \| null` | エラー情報 |
+| `refetch` | `() => Promise<void>` | リセットして最初から再取得 |
+| `loadMore` | `() => Promise<void>` | 次ページを追記ロード |
+
+### 使用例
+
+```tsx
+import { useSearch } from '@awll/sdk';
+
+function CustomerList() {
+  const { data, totalCount, hasMore, isLoading, error, loadMore } = useSearch({
+    formId: 'customer_form',
+    filters: [
+      { field: 'name', operator: 'CONTAINS', value: '山田' },
+      { field: 'age', operator: 'BETWEEN', value: 20, maxValue: 60 },
+      { field: 'status', operator: 'IN', value: null, values: ['active', 'trial'] },
+    ],
+    limit: 50,
+  });
+
+  if (isLoading) return <Loading />;
+  if (error) return <Error error={error} />;
+
+  return (
+    <>
+      <p>検索結果: {totalCount}件</p>
+      {data.map((r) => <Row key={r.__rowId as string} record={r} />)}
+      {hasMore && <button onClick={loadMore}>もっと見る</button>}
+    </>
+  );
+}
+```
+
+> 💡 **useRecords との使い分け**: `useRecords` はページ番号ベースのページネーション + 基本フィルタ向き。`useSearch` は複雑な検索条件 + 無限スクロール向き。
 
 ---
 
