@@ -74,13 +74,14 @@ export default function MyScreen() {
 
 ---
 
-## Hook選択ガイド — useRecords vs useRecord vs useNodes
+## Hook選択ガイド — useRecords vs useRecord vs useNodes vs useSearch
 
 | Hook / API | 用途 | ARRAYフィールド（サブテーブル） |
 |------------|------|-------------------------------|
-| `useRecords` | **一覧画面** — 検索・ページネーション | **参照のみ**（`[{__rowId}]`、Projection Table） |
+| `useRecords` | **一覧画面** — 基本フィルタ + ページネーション | **参照のみ**（`[{__rowId}]`、Projection Table） |
 | `useRecord` | **詳細画面（ルートフィールド）** | **不完全** — `__rowId` 参照のみの場合あり |
 | `useNodes` | **サブテーブル取得** ✅ 推奨 | **全階層の完全データ**（Node Table） |
+| `useSearch` | **高度検索** — 12 種演算子・AND/OR・BETWEEN・loadMore | 参照のみ（Projection Table） |
 
 > ⚠️ **重要**: `useRecords` / `useRecord` はARRAYフィールドの完全データを**保証しません**。サブテーブルを表示する詳細画面では、必ず **`useNodes`** を併用してください。
 
@@ -117,14 +118,23 @@ interface UseRecordsOptions {
     page?: number;             // ページ番号（1始まり）
     pageSize?: number;         // 1ページあたりの件数（デフォルト20、最大1000）
   };
-  filter?: Record<string, unknown>;   // フィルタ条件
+  filter?: Record<string, unknown> | FilterCondition[]; // フィルタ条件
   sort?: {
     field: string;
     order: 'asc' | 'desc';
   };
   enabled?: boolean;                   // フック有効/無効（デフォルトtrue）
 }
+
+// filter の推奨形式（型安全）
+interface FilterCondition {
+  field: string;                       // フィールドコード
+  op: 'eq' | 'neq' | 'contains' | 'gte' | 'lte' | 'in';
+  value: unknown;                      // 比較値
+}
 ```
+
+> 💡 **フィルタ形式**: `Record<string, unknown>` の旧形式（完全一致のみ）と、演算子を指定できる `FilterCondition[]` の新形式の両方に対応しています。旧形式は自動で `{ field, op: 'eq', value }` に変換されます。新規実装では `FilterCondition[]` を推奨します。より高度な検索が必要な場合は `useSearch()` を使用してください。
 
 ### 戻り値
 
@@ -862,6 +872,8 @@ function useNodes(options: UseNodesOptions): UseNodesResult
 | `depth` | `number` | No | 階層の深さ（0=ルート, 1=サブテーブル, 2=サブサブテーブル） |
 | `parentRowId` | `string` | No | 親ノードのrowId（直接の子のみ取得） |
 | `fieldCode` | `string` | No | フィールドコードでフィルタ |
+| `sortBy` | `string` | No | ソートフィールド（`rowId` / `depth` / `fieldCode` / `data.{fieldName}`） |
+| `sortOrder` | `'asc' \| 'desc'` | No | ソート順（デフォルト `asc`） |
 | `limit` | `number` | No | 取得件数上限（デフォルト100、最大1000） |
 | `offset` | `number` | No | オフセット（デフォルト0） |
 | `enabled` | `boolean` | No | フック有効/無効（デフォルトtrue） |
@@ -910,7 +922,101 @@ const { data, totalCount } = useNodes({
   limit: 20,
   offset: 0,
 });
+
+// サブテーブル行を data.name の昇順でソート
+const { data } = useNodes({
+  answerId: 'answer-123',
+  depth: 1,
+  sortBy: 'data.name',
+  sortOrder: 'asc',
+});
 ```
+
+---
+
+## useSearch()
+
+高度検索フック。`POST /api/search/advanced` を利用し、12 種の演算子 / AND・OR / BETWEEN / IN / loadMore（無限スクロール）に対応。
+
+### シグネチャ
+
+```typescript
+function useSearch(options: UseSearchOptions): UseSearchResult
+```
+
+### UseSearchOptions
+
+| パラメータ | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| `formId` | `string` | No | データベースID（省略時は全データベース横断） |
+| `filters` | `SearchFilter[]` | Yes | 検索フィルタ（1 件以上） |
+| `limit` | `number` | No | 取得件数上限（デフォルト100、最大1000） |
+| `enabled` | `boolean` | No | フック有効/無効（デフォルトtrue） |
+
+### SearchFilter
+
+```typescript
+interface SearchFilter {
+  field: string;              // フィールドコード
+  operator: SearchOperator;   // 演算子
+  value: unknown;             // 比較値
+  maxValue?: unknown;         // 最大値（BETWEEN 用）
+  values?: unknown[];         // 複数値リスト（IN / NOT_IN 用）
+  logicalOperator?: 'AND' | 'OR'; // 論理演算子（デフォルト AND）
+}
+
+type SearchOperator =
+  | 'EQUALS' | 'NOT_EQUALS'
+  | 'GREATER_THAN' | 'LESS_THAN'
+  | 'GREATER_THAN_OR_EQUAL' | 'LESS_THAN_OR_EQUAL'
+  | 'CONTAINS' | 'NOT_CONTAINS' | 'STARTS_WITH'
+  | 'BETWEEN'
+  | 'IN' | 'NOT_IN';
+```
+
+### UseSearchResult
+
+| プロパティ | 型 | 説明 |
+|-----------|-----|------|
+| `data` | `Record<string, unknown>[]` | 検索結果データ |
+| `totalCount` | `number` | 総件数 |
+| `hasMore` | `boolean` | 次ページの有無 |
+| `isLoading` | `boolean` | 初回読み込み中 |
+| `isFetching` | `boolean` | 再取得 or loadMore 中 |
+| `error` | `AwllError \| null` | エラー情報 |
+| `refetch` | `() => Promise<void>` | リセットして最初から再取得 |
+| `loadMore` | `() => Promise<void>` | 次ページを追記ロード |
+
+### 使用例
+
+```tsx
+import { useSearch } from '@awll/sdk';
+
+function CustomerList() {
+  const { data, totalCount, hasMore, isLoading, error, loadMore } = useSearch({
+    formId: 'customer_form',
+    filters: [
+      { field: 'name', operator: 'CONTAINS', value: '山田' },
+      { field: 'age', operator: 'BETWEEN', value: 20, maxValue: 60 },
+      { field: 'status', operator: 'IN', value: null, values: ['active', 'trial'] },
+    ],
+    limit: 50,
+  });
+
+  if (isLoading) return <Loading />;
+  if (error) return <Error error={error} />;
+
+  return (
+    <>
+      <p>検索結果: {totalCount}件</p>
+      {data.map((r) => <Row key={r.__rowId as string} record={r} />)}
+      {hasMore && <button onClick={loadMore}>もっと見る</button>}
+    </>
+  );
+}
+```
+
+> 💡 **useRecords との使い分け**: `useRecords` はページ番号ベースのページネーション + 基本フィルタ向き。`useSearch` は複雑な検索条件 + 無限スクロール向き。
 
 ---
 
@@ -1160,6 +1266,7 @@ function useNavigation(): UseNavigationResult
 | `navigateToForm` | `(formId, options?) => Promise<{success}>` | DB一覧/新規作成/編集に遷移 |
 | `navigateToExternalUrl` | `(url, options?) => Promise<{success}>` | 外部URLに遷移 |
 | `goBack` | `() => Promise<{success}>` | 前の画面に戻る |
+| `updateQueryParams` | `(params, options?) => Promise<{success, query}>` | **画面再マウントなしで**URLクエリを更新（タブ切替向け） |
 | `isNavigating` | `boolean` | 遷移処理中フラグ |
 
 ### navigateToScreen
@@ -1198,6 +1305,75 @@ navigateToExternalUrl(url: string, options?: { newTab?: boolean }): Promise<{suc
 |------|-----|------|------|
 | `url` | `string` | Yes | 遷移先URL（`http:` / `https:` のみ許可） |
 | `options.newTab` | `boolean` | No | `true` で新しいタブで開く（デフォルト: `false`） |
+
+### updateQueryParams
+
+**画面 (iframe) を再マウントすることなく**、親アプリの URL クエリパラメータだけを差し替えます。タブ切替・フィルタ更新・モーダル開閉など、状態を URL 同期したいが画面の再描画コスト（API再取得・スクロール位置リセット等）を避けたいケース向け。
+
+> 💡 **vs navigateToScreen**: `navigateToScreen(SCREEN_CODE, params)` は同一画面を再 navigate するとクエリは更新されますが、iframe が再マウントされ画面 state が失われます。`updateQueryParams` は iframe を残したまま `useExecutionContext().query` だけ即時更新します。
+
+```typescript
+updateQueryParams(
+  params: UpdateQueryParamsInput,
+  options?: UpdateQueryParamsOptions,
+): Promise<UpdateQueryParamsResult>
+
+type UpdateQueryParamsInput = Record<string, string | number | null | undefined>;
+
+interface UpdateQueryParamsOptions {
+  /** true で既存クエリを保持し指定キーのみマージ。デフォルト false（指定キー以外を削除） */
+  merge?: boolean;
+  /** true で history.pushState（履歴エントリ追加）。デフォルト false（replaceState） */
+  push?: boolean;
+}
+
+interface UpdateQueryParamsResult {
+  success: boolean;
+  query: Record<string, string>;  // 反映後のクエリ全体
+}
+```
+
+| 引数 | 型 | 必須 | 説明 |
+|------|-----|------|------|
+| `params` | `Record<string, string \| number \| null \| undefined>` | Yes | 更新したいキー/値。`null`/`undefined` を渡すとそのキーは URL から削除される。`''`（空文字）はそのまま `?key=` として残る |
+| `options.merge` | `boolean` | No | `true` で既存パラメータを保持してマージ。`false`（既定）で指定キー以外を削除して全置換 |
+| `options.push` | `boolean` | No | `true` で履歴に新しいエントリ追加。`false`（既定）で現在エントリを置換 |
+
+#### 使用例
+
+```tsx
+import { useNavigation, useExecutionContext } from '@awll/sdk';
+
+export default function TabbedView() {
+  const { updateQueryParams } = useNavigation();
+  const ctx = useExecutionContext();
+  const tab = (ctx.query?.tab as string) || 'list';
+
+  const handleTabChange = async (next: string) => {
+    // タブ切替: 'tab' のみ更新、他のクエリ（recordId 等）は保持したい
+    await updateQueryParams({ tab: next }, { merge: true });
+  };
+
+  // フィルタクリア: 'filter' を URL から削除
+  const clearFilter = () => updateQueryParams({ filter: null }, { merge: true });
+
+  return (
+    <Tabs value={tab} onChange={(_, v) => handleTabChange(v)}>
+      <Tab value="list" label="一覧" />
+      <Tab value="manual" label="マニュアル" />
+    </Tabs>
+  );
+}
+```
+
+#### 注意事項
+
+1. **同一画面でのクエリ更新限定**: 別画面に遷移したい場合は `navigateToScreen` を使う
+2. **`merge: false`（既定）の挙動**: 指定キー以外も全部消える。タブ切替で他パラメータを残したいなら必ず `{ merge: true }` を指定
+3. **`push: false`（既定）の挙動**: 履歴に残らないので、ブラウザバックで前のクエリ状態には戻らない
+4. **`isNavigating` は更新されない**: あくまで URL のみの更新で、画面遷移ではない
+
+**追加日**: 2026-04-26（AWLL-inc/awll-studio PR #1774 / #1775）
 
 ### 使用例
 
