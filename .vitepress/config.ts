@@ -56,6 +56,7 @@ export default defineConfig({
             { text: 'Webhook・メニュー API', link: '/api-reference/reference/REST APIリファレンス/webhooks-menus-api' },
             { text: '管理者専用 API', link: '/api-reference/reference/REST APIリファレンス/admin-api' },
             { text: 'メール送信 API', link: '/api-reference/reference/REST APIリファレンス/mail-api' },
+            { text: 'AI生成 API', link: '/api-reference/reference/REST APIリファレンス/ai-api' },
           ]
         },
         {

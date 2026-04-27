@@ -102,6 +102,12 @@
 | GET | `/api/v1/mail/usage` | テナント月次メール使用量取得（ADMIN権限） |
 | GET | `/api/v1/mail/usage/all` | 全テナント月次メール使用量取得（SUPER_ADMIN権限） |
 
+### AI生成
+
+| Method | Path | 説明 |
+|--------|------|------|
+| POST | `/api/v1/ai/generate` | プロンプト + コンテキストからテキスト生成（USER/ADMIN権限、レート制限: ユーザー10回/分・テナント100回/時、タイムアウト120秒） |
+
 ### スクリプトルール（Admin）
 
 | Method | Path | 説明 |
