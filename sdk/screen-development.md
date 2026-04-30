@@ -2,7 +2,7 @@
 
 **対象**: AWLL Studioプラットフォームで画面を開発する開発者
 **難易度**: 初級〜中級
-**最終更新**: 2026-04-01
+**最終更新**: 2026-04-30
 
 ## 概要
 
@@ -299,6 +299,103 @@ navigateToForm(formId: string, options?: { mode?: 'list' | 'create' | 'edit'; re
 | `list` | `/forms/:formId/answers` | 一覧画面 |
 | `create` | `/forms/:formId/answers/new` | 新規作成画面 |
 | `edit` | `/forms/:formId/answers/:recordId/edit` | 編集画面 |
+
+### タブ状態の永続化（必須対応）
+
+`<Tabs>` を画面に追加する場合は、**例外なく**現在のタブを URL クエリパラメータに反映すること。リロード・URL共有・ブラウザバック/フォワードで状態を再現できることが UX 上の最低要件である。
+
+> ⚠️ **必須ルール**: タブを実装した PR は、URL クエリ連携も同じ PR で必ず入れること。後から付ける運用は破綻しがち。
+
+#### 実装ルール
+
+1. URL 用のキー配列を定義する（タブ index の永続化は壊れやすい）
+
+   ```tsx
+   const TAB_KEYS = ['list', 'cost-formula'] as const;
+   ```
+
+2. 現在タブ index は `useState` ではなく `useExecutionContext().query.tab` から**毎レンダリング都度導出**する。`useState` だと iframe が再マウントしないケースで初期値が固まり、URL とズレる
+
+3. タブ切替ハンドラで URL を更新する
+
+4. 不正値・欠落時は `0`（デフォルトタブ）にフォールバック
+
+#### 推奨パターン: navigateToScreen でタブ反映
+
+現行ランタイムで安定して動く方式。
+
+```tsx
+import { useExecutionContext, useNavigation } from '@awll/sdk';
+import { Tabs, Tab } from '@mui/material';
+
+const SCREEN_CODE = 'member_master';
+const TAB_KEYS = ['list', 'cost-formula'] as const;
+
+export default function App() {
+  const ctx = useExecutionContext();
+  const { navigateToScreen } = useNavigation();
+
+  // タブ index は毎回 URL から導出
+  const tabParam = (ctx?.query as any)?.tab as string | undefined;
+  const tab = (() => {
+    const idx = TAB_KEYS.indexOf(tabParam as any);
+    return idx >= 0 ? idx : 0;
+  })();
+
+  const handleTabChange = (_: any, v: number) => {
+    // 同一画面に navigate することで URL の tab パラメータを更新
+    navigateToScreen(SCREEN_CODE, { tab: TAB_KEYS[v] });
+  };
+
+  return (
+    <>
+      <Tabs value={tab} onChange={handleTabChange}>
+        <Tab label="一覧" />
+        <Tab label="算出方法" />
+      </Tabs>
+      {tab === 0 && <ListView />}
+      {tab === 1 && <CostFormulaView />}
+    </>
+  );
+}
+```
+
+トレードオフ: 同一画面への navigate は iframe を再マウントするため、画面 state（スクロール位置・展開状態等）はリセットされる。データ取得は SDK のキャッシュにより通常は再フェッチ不要。
+
+#### 複数のクエリパラメータがある場合
+
+詳細画面で `recordId + tab + page` のように複数パラメータを使う場合は、ハンドラで全てのパラメータを保持する:
+
+```tsx
+const handleTabChange = (_: any, v: number) => {
+  const params: Record<string, string> = { recordId, tab: TAB_KEYS[v] };
+  if (planPage > 1) params.planPage = String(planPage);
+  if (reportPage > 1) params.reportPage = String(reportPage);
+  navigateToScreen(SCREEN_CODE, params);
+};
+```
+
+#### NG パターン
+
+```tsx
+// ❌ NG: useState のみ — リロードで初期タブに戻る
+const [tab, setTab] = useState(0);
+
+// ❌ NG: 数値 index を URL に書く — タブ順序を変えると URL が壊れる
+navigateToScreen(SCREEN_CODE, { tab: String(v) });
+
+// ❌ NG: tab 切替で window.location を直接操作 — iframe sandbox で動かない
+window.location.search = `?tab=${TAB_KEYS[v]}`;
+```
+
+#### ページネーション・フィルタも同様
+
+タブ以外でも、ユーザーが「戻ってきた時に同じ場所で続けたい」状態は URL に出すこと。具体的には:
+
+- 一覧画面のページ番号（`?page=3`）
+- 検索クエリ・フィルタ条件（`?search=alice&status=active`）
+- 詳細画面で開いているサブタブやセクション
+- ソート順
 
 ### パターン: 複数画面をまたぐ業務フロー
 
@@ -829,6 +926,18 @@ const RecordRow = React.memo(({ record }) => (
 ));
 ```
 
+5. **タブ・ページ送り・フィルタは必ず URL クエリに反映**
+
+   `<Tabs>` を追加する PR は URL 連携も同時に入れる。詳細は「[タブ状態の永続化（必須対応）](#タブ状態の永続化必須対応)」を参照。
+
+   ```tsx
+   const TAB_KEYS = ['list', 'cost-formula'] as const;
+   const ctx = useExecutionContext();
+   const { navigateToScreen } = useNavigation();
+   const tab = Math.max(0, TAB_KEYS.indexOf((ctx?.query as any)?.tab));
+   const handleTab = (_: any, v: number) => navigateToScreen(SCREEN_CODE, { tab: TAB_KEYS[v] });
+   ```
+
 ### ❌ DON'T（非推奨）
 
 1. **window.AWLLSDKを直接参照しない**
@@ -879,6 +988,21 @@ useEffect(() => {
   return () => { cancelled = true; };
 }, []);
 ```
+
+4. **タブ index を `useState` だけで持たない**
+```tsx
+// ❌ リロードで初期タブに戻る・URL共有不可
+const [tab, setTab] = useState(0);
+
+// ✅ URL クエリから都度導出（リロード・共有・戻るボタン対応）
+const TAB_KEYS = ['list', 'cost-formula'] as const;
+const ctx = useExecutionContext();
+const tab = Math.max(0, TAB_KEYS.indexOf((ctx?.query as any)?.tab));
+```
+
+5. **`confirm()` / `alert()` / `prompt()` を使わない**
+
+   iframe sandbox では動作しない。確認 UI は MUI `Dialog` で実装する。
 
 ## トラブルシューティング
 
