@@ -1266,7 +1266,6 @@ function useNavigation(): UseNavigationResult
 | `navigateToForm` | `(formId, options?) => Promise<{success}>` | DB一覧/新規作成/編集に遷移 |
 | `navigateToExternalUrl` | `(url, options?) => Promise<{success}>` | 外部URLに遷移 |
 | `goBack` | `() => Promise<{success}>` | 前の画面に戻る |
-| `updateQueryParams` | `(params, options?) => Promise<{success, query}>` | **画面再マウントなしで**URLクエリを更新（タブ切替向け） |
 | `isNavigating` | `boolean` | 遷移処理中フラグ |
 
 ### navigateToScreen
@@ -1305,75 +1304,6 @@ navigateToExternalUrl(url: string, options?: { newTab?: boolean }): Promise<{suc
 |------|-----|------|------|
 | `url` | `string` | Yes | 遷移先URL（`http:` / `https:` のみ許可） |
 | `options.newTab` | `boolean` | No | `true` で新しいタブで開く（デフォルト: `false`） |
-
-### updateQueryParams
-
-**画面 (iframe) を再マウントすることなく**、親アプリの URL クエリパラメータだけを差し替えます。タブ切替・フィルタ更新・モーダル開閉など、状態を URL 同期したいが画面の再描画コスト（API再取得・スクロール位置リセット等）を避けたいケース向け。
-
-> 💡 **vs navigateToScreen**: `navigateToScreen(SCREEN_CODE, params)` は同一画面を再 navigate するとクエリは更新されますが、iframe が再マウントされ画面 state が失われます。`updateQueryParams` は iframe を残したまま `useExecutionContext().query` だけ即時更新します。
-
-```typescript
-updateQueryParams(
-  params: UpdateQueryParamsInput,
-  options?: UpdateQueryParamsOptions,
-): Promise<UpdateQueryParamsResult>
-
-type UpdateQueryParamsInput = Record<string, string | number | null | undefined>;
-
-interface UpdateQueryParamsOptions {
-  /** true で既存クエリを保持し指定キーのみマージ。デフォルト false（指定キー以外を削除） */
-  merge?: boolean;
-  /** true で history.pushState（履歴エントリ追加）。デフォルト false（replaceState） */
-  push?: boolean;
-}
-
-interface UpdateQueryParamsResult {
-  success: boolean;
-  query: Record<string, string>;  // 反映後のクエリ全体
-}
-```
-
-| 引数 | 型 | 必須 | 説明 |
-|------|-----|------|------|
-| `params` | `Record<string, string \| number \| null \| undefined>` | Yes | 更新したいキー/値。`null`/`undefined` を渡すとそのキーは URL から削除される。`''`（空文字）はそのまま `?key=` として残る |
-| `options.merge` | `boolean` | No | `true` で既存パラメータを保持してマージ。`false`（既定）で指定キー以外を削除して全置換 |
-| `options.push` | `boolean` | No | `true` で履歴に新しいエントリ追加。`false`（既定）で現在エントリを置換 |
-
-#### 使用例
-
-```tsx
-import { useNavigation, useExecutionContext } from '@awll/sdk';
-
-export default function TabbedView() {
-  const { updateQueryParams } = useNavigation();
-  const ctx = useExecutionContext();
-  const tab = (ctx.query?.tab as string) || 'list';
-
-  const handleTabChange = async (next: string) => {
-    // タブ切替: 'tab' のみ更新、他のクエリ（recordId 等）は保持したい
-    await updateQueryParams({ tab: next }, { merge: true });
-  };
-
-  // フィルタクリア: 'filter' を URL から削除
-  const clearFilter = () => updateQueryParams({ filter: null }, { merge: true });
-
-  return (
-    <Tabs value={tab} onChange={(_, v) => handleTabChange(v)}>
-      <Tab value="list" label="一覧" />
-      <Tab value="manual" label="マニュアル" />
-    </Tabs>
-  );
-}
-```
-
-#### 注意事項
-
-1. **同一画面でのクエリ更新限定**: 別画面に遷移したい場合は `navigateToScreen` を使う
-2. **`merge: false`（既定）の挙動**: 指定キー以外も全部消える。タブ切替で他パラメータを残したいなら必ず `{ merge: true }` を指定
-3. **`push: false`（既定）の挙動**: 履歴に残らないので、ブラウザバックで前のクエリ状態には戻らない
-4. **`isNavigating` は更新されない**: あくまで URL のみの更新で、画面遷移ではない
-
-**追加日**: 2026-04-26（AWLL-inc/awll-studio PR #1774 / #1775）
 
 ### 使用例
 
@@ -1982,6 +1912,119 @@ const { data: subtasks } = useNodes({
   enabled: !!selectedTaskRowId,
 });
 ```
+
+---
+
+## データ更新ベストプラクティス
+
+サブテーブル（ARRAY型フィールド）のデータ操作で、過去にデータ消失インシデントが発生しています（[INC-2026-0403](../api/data-update-best-practices.md)）。以下のルールを厳守してください。
+
+### API選択フローチャート
+
+```
+やりたいことは？
+│
+├─ ルートフィールドの更新（TEXT, SELECT, NUMBER等）
+│  ├─ 画面SDK → useMutation('update') + 全フィールドスプレッド
+│  └─ REST API → PATCH /answers/{id}（推奨）または PUT
+│
+├─ サブテーブル（ARRAY）の操作
+│  ├─ 行の追加   → ✅ useNodeMutation.createNode()
+│  ├─ 行の更新   → ✅ useNodeMutation.updateNode()（シャローマージ）
+│  ├─ 行の削除   → ✅ useNodeMutation.deleteNode()（CASCADE）
+│  └─ 全行の置換 → ✅ replaceSubtableRows（REST API）
+│
+└─ answerData全体の置換
+   └─ ❌ 原則禁止（ARRAY/USERフィールド消失リスク）
+```
+
+### 🚨 致命的アンチパターン
+
+#### 1. GET → 編集 → PUT ラウンドトリップ
+
+```tsx
+// ❌ 絶対にやってはいけない
+const record = await getAnswer(formId, answerId);
+record.answerData.status = 'completed';
+await updateAnswer(formId, answerId, record.answerData);
+// → ARRAY全行のフィールドが空に上書き、USERフィールドが消失
+```
+
+**原因**: `getAnswer` は**表示用の展開済みデータ**を返すが、`updateAnswer` は**保存用の正規化データ**を期待する。この形式不一致がデータ消失を引き起こす。
+
+| データ型 | GETが返す形式 | PUTが期待する形式 | 結果 |
+|---------|-------------|-----------------|------|
+| ARRAY（サブテーブル） | `__rowId`のみの参照 | 全フィールドデータ | **全行のフィールドが空に上書き** |
+| USER | `{userId, username, email}` | 保存用正規化形式 | **空オブジェクト `{}` に上書き** |
+| TEXT, NUMBER等 | そのまま | そのまま | 正常 |
+
+#### 2. updateNode() の data に ARRAYフィールドを含める
+
+```tsx
+// ❌ 幽霊データが発生する
+await updateNode(answerId, rowId, {
+  data: {
+    status: 'confirmed',
+    comments: [{ name: 'コメント1' }, { name: 'コメント2' }],  // ← ARRAY型を直接埋め込み
+  },
+});
+// → API 200 OK、v1 GET でも見える → しかし画面では「コメント (0件)」
+```
+
+**原因**: `PUT /nodes/{rowId}` でARRAY配列を `data` に埋め込むと、depth=2の子ノードが生成されない。データはJSON配列としてノードの `data` 属性に格納されるだけで、独立ノードにならない。
+
+| 方式 | データ構造 | 画面表示 |
+|------|-----------|---------|
+| PUT（data内に配列埋め込み） | `data.comments` にJSON配列 → depth=2ノード未生成 | **0件** |
+| POST（子ノード個別作成） | 各コメントがdepth=2の独立ノード → `__rowId` 参照 | **7件** |
+
+**正しい方法**: サブレコード追加は必ず `createNode()` を使う。
+
+```tsx
+// ✅ 正しい: createNode で子ノードとして追加
+await createNode(answerId, {
+  parentRowId: weeklyReportRowId,
+  fieldCode: 'comments',
+  data: { name: 'コメント1' },
+});
+```
+
+#### 3. useMutation('update') で ARRAY含むanswerDataを全体送信
+
+```tsx
+// ❌ データ消失リスク
+await updateMutation.mutate({
+  formId,
+  recordId,
+  answerData: {
+    ...currentValues,
+    tasks: [...currentValues.tasks, { task_name: '新規', status: 'todo' }],
+  },
+});
+// → tasks 配列内に子ノードが作成されず、既存サブレコードの参照が壊れる可能性
+```
+
+### 操作別API対応表
+
+| やりたいこと | 画面SDK | REST API | 安全性 |
+|---|---|---|---|
+| ルートフィールドの更新 | `useMutation('update')` + 全フィールドスプレッド | `PATCH /answers/{id}`（推奨） | ✅ |
+| サブテーブル行の追加 | `useNodeMutation.createNode()` | `POST /answers/{id}/nodes` | ✅ |
+| サブテーブル行の更新 | `useNodeMutation.updateNode()` | `PUT /answers/{id}/nodes/{rowId}` | ✅ シャローマージ |
+| サブテーブル行の削除 | `useNodeMutation.deleteNode()` | `DELETE /answers/{id}/nodes/{rowId}` | ⚠️ CASCADE |
+| サブテーブル全行置換 | — | `PUT /answers/{id}/nodes`（replaceSubtableRows） | ✅ |
+| レコード全体の置換 | `useMutation('update')` | `PUT /answers/{id}` | 🚨 非推奨 |
+
+### updateNode の data に含めてよいもの・ダメなもの
+
+| フィールド型 | data に含めてよいか | 説明 |
+|------------|:--:|------|
+| TEXT, NUMBER, CURRENCY, DATE | ✅ | そのまま上書き |
+| SELECT, RADIO, CHECKBOX | ✅ | value値を指定 |
+| USER | ✅ | userId文字列を指定 |
+| REFERENCE | ✅ | 参照先answerId |
+| **ARRAY（サブテーブル）** | **❌ 禁止** | createNode/deleteNodeで操作する |
+| FILE | ✅ | uploadFileの戻り値（FileMetadata） |
 
 ---
 
