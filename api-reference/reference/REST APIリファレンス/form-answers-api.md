@@ -14,13 +14,14 @@
 | PATCH | `/api/v1/forms/{formId}/answers/{answerId}` | レコード部分更新（楽観ロック付き） | WRITE |
 | DELETE | `/api/v1/forms/{formId}/answers/{answerId}` | レコード削除 | WRITE + BUSINESS_ACCESS |
 | POST | `/api/v1/forms/{formId}/answers/{answerId}/copy` | レコード複製 | WRITE + BUSINESS_ACCESS |
-| POST | `/api/v1/forms/{formId}/answers/bulk` | 一括作成 | WRITE + BUSINESS_ACCESS |
-| PUT | `/api/v1/forms/{formId}/answers/bulk` | 一括更新 | WRITE + BUSINESS_ACCESS |
-| POST | `/api/v1/forms/{formId}/answers/bulk-delete` | 一括削除 | WRITE + BUSINESS_ACCESS |
+| POST | `/api/v1/forms/{formId}/answers/bulk` | 一括作成（最大500件） | WRITE + BUSINESS_ACCESS |
+| PUT | `/api/v1/forms/{formId}/answers/bulk` | 一括更新（最大500件） | WRITE + BUSINESS_ACCESS |
+| PATCH | `/api/v1/forms/{formId}/answers/bulk` | 一括差分更新（最大500件、楽観ロック付き） | WRITE + BUSINESS_ACCESS |
+| POST | `/api/v1/forms/{formId}/answers/bulk-delete` | 一括削除（最大500件） | WRITE + BUSINESS_ACCESS |
 | POST | `/api/v1/forms/{formId}/answers/export` | CSV出力（ZIP形式） | READ + BUSINESS_ACCESS |
 | POST | `/api/v1/forms/{formId}/answers/rebuild-index` | 検索インデックス再構築 | WRITE + BUSINESS_ACCESS |
 
-> **注意**: 一括操作は `POST /bulk`（一括作成）と `PUT /bulk`（一括更新）で分離されています。
+> **注意**: 一括操作は `POST /bulk`（一括作成）、`PUT /bulk`（一括全体更新）、`PATCH /bulk`（一括差分更新）で分離されています。最大500件/リクエスト。
 
 ### 大量ネストデータの更新に関する注意
 
@@ -376,9 +377,9 @@ GET /api/v1/forms/{formId}/answers?limit=50&offset=50&sortField=createdAt&sortOr
 
 | フィールド | 型 | 必須 | バリデーション |
 |-----------|-----|------|-------------|
-| items | array | Yes | 最大100件 |
+| items | array | Yes | 最大500件 |
 
-### PUT /api/v1/forms/{formId}/answers/bulk（一括更新）
+### PUT /api/v1/forms/{formId}/answers/bulk（一括全体更新）
 
 ```json
 {
@@ -388,6 +389,54 @@ GET /api/v1/forms/{formId}/answers?limit=50&offset=50&sortField=createdAt&sortOr
   ]
 }
 ```
+
+### PATCH /api/v1/forms/{formId}/answers/bulk（一括差分更新）
+
+複数レコードを一括で差分更新します。楽観ロック（expectedVersion）はオプション。
+サブテーブル・サブサブテーブルのネストパスにも対応。
+
+```json
+{
+  "items": [
+    {
+      "answerId": "01ARZ3...",
+      "expectedVersion": 5,
+      "operations": [
+        { "op": "replace", "path": "industry", "value": "IT" },
+        { "op": "append", "path": "departments", "value": { "dept_name": "新部門" } }
+      ]
+    },
+    {
+      "answerId": "01BCD4...",
+      "operations": [
+        { "op": "update", "path": "departments[__rowId='01HQA123'].employees[__rowId='01EMP456']", "value": { "salary": 500000 } }
+      ]
+    }
+  ]
+}
+```
+
+| フィールド | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| items | array | Yes | 最大500件 |
+| items[].answerId | string | Yes | 対象レコードID |
+| items[].expectedVersion | long | No | 楽観ロックバージョン（省略時はチェックスキップ） |
+| items[].operations | array | Yes | 差分操作リスト |
+| items[].operations[].op | string | Yes | `replace` / `append` / `update` / `delete` |
+| items[].operations[].path | string | Yes | フィールドパス（ネスト対応） |
+| items[].operations[].value | any | No | 更新値（deleteの場合は不要） |
+
+#### ネストパスの書式
+
+| パターン | 例 | 説明 |
+|---------|-----|------|
+| トップレベル | `industry` | トップレベルフィールド |
+| サブテーブル（__rowId） | `departments[__rowId='01HQA123']` | __rowIdで要素を特定 |
+| サブテーブル（インデックス） | `departments[0]` | インデックスで要素を特定 |
+| サブサブテーブル | `departments[__rowId='...'].employees[__rowId='...']` | ネストした配列の要素 |
+| ネストフィールド | `departments[0].employees[1].salary` | 特定の値まで辿る |
+
+> **推奨**: `__rowId` セレクタを使用してください。インデックスは配列の並び順に依存するため非推奨です。
 
 ### POST /api/v1/forms/{formId}/answers/bulk-delete（一括削除）
 
@@ -449,4 +498,4 @@ Content-Type: `application/zip`
 
 ---
 
-**更新日**: 2026-04-15
+**更新日**: 2026-05-03

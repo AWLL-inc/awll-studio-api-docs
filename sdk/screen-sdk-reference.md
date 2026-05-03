@@ -854,6 +854,113 @@ const handlePageChange = React.useCallback((newPage) => {
 
 ---
 
+## useBulkMutation()
+
+データの一括作成・一括差分更新を実行します。CSV取り込みや大量レコードの一括操作に最適。
+
+### シグネチャ
+
+```typescript
+function useBulkMutation(): UseBulkMutationResult
+```
+
+### 戻り値
+
+```typescript
+interface UseBulkMutationResult {
+  bulkCreate: (options: BulkCreateOptions) => Promise<BulkOperationResponse>;
+  bulkCreateResult: { data: BulkOperationResponse | null; error: AwllError | null; isLoading: boolean };
+
+  bulkPatch: (options: BulkPatchOptions) => Promise<BulkOperationResponse>;
+  bulkPatchResult: { data: BulkOperationResponse | null; error: AwllError | null; isLoading: boolean };
+
+  reset: () => void;
+}
+
+interface BulkCreateOptions {
+  formId: string;
+  records: Array<{ data: Record<string, unknown> }>;
+}
+
+interface BulkPatchOptions {
+  formId: string;
+  operations: Array<{
+    recordId: string;
+    expectedVersion?: number;  // 省略時はバージョンチェックスキップ
+    patches: Array<{ op: string; path: string; value?: unknown }>;
+    // または operations キーでも可
+  }>;
+}
+
+interface BulkOperationResponse {
+  totalRequested: number;
+  succeeded: number;
+  failed: number;
+  results: Array<{ index: number; status: 'SUCCESS' | 'FAILED'; answerId?: string; error?: string }>;
+}
+```
+
+### 使用例: CSV一括取り込み
+
+```tsx
+import { useBulkMutation } from '@awll/sdk';
+
+function CSVImport() {
+  const { bulkCreate, bulkCreateResult } = useBulkMutation();
+
+  const handleImport = async (csvRows) => {
+    const result = await bulkCreate({
+      formId: 'FORM_ID',
+      records: csvRows.map(row => ({ data: { name: row.name, amount: row.amount } })),
+    });
+    console.log(`${result.succeeded}件成功 / ${result.failed}件失敗`);
+  };
+}
+```
+
+### 使用例: 一括フィールド更新
+
+```tsx
+const { bulkPatch } = useBulkMutation();
+
+// 選択されたレコードの業種を一括更新
+const result = await bulkPatch({
+  formId: 'FORM_ID',
+  operations: selectedIds.map(id => ({
+    recordId: id,
+    // expectedVersion 省略 → バージョンチェックなし
+    operations: [{ op: 'replace', path: 'industry', value: '新業種' }],
+  })),
+});
+```
+
+### 使用例: サブテーブルCSV一括追加
+
+```tsx
+// parent_answer_id でグルーピングして、各親レコードにサブテーブル行をappend
+const grouped = groupByParentId(csvRows);
+const result = await bulkPatch({
+  formId: 'FORM_ID',
+  operations: Object.entries(grouped).map(([parentId, rows]) => ({
+    recordId: parentId,
+    operations: rows.map(row => ({
+      op: 'append',
+      path: 'departments',
+      value: { dept_name: row.dept_name, budget: row.budget },
+    })),
+  })),
+});
+```
+
+### 制限事項
+
+- 最大500件/リクエスト
+- 部分成功をサポート（1件失敗しても残りは続行）
+- レート制限はリクエスト単位（バルク全体で1カウント）
+- タイムアウト: 120秒（通常の15秒より長い）
+
+---
+
 ## useNodes()
 
 サブテーブル（ノード）のデータを取得するフック。depth/parentRowId/fieldCodeでフィルタ可能。
