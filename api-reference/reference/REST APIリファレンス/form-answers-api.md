@@ -29,15 +29,17 @@
 
 #### 回避策
 
-1. **DELETE → POST で再作成**: answerIdは変わるが確実にanswerDataに反映される
-2. **Nodes API で個別ノードを更新**: 特定のサブレコードだけ更新可能。Issue #1325 により answerData にも自動同期される
-3. **UI手動更新**: AWLL Studio画面からの更新は確実に反映される
+1. **PATCH で差分更新（推奨）**: 変更フィールドのみ操作するため504が発生しない。ネストパス対応でサブサブテーブルまで更新可能
+2. **PATCH /bulk で一括差分更新**: 複数レコードの差分更新を1リクエストで実行（最大500件）
+3. **Nodes API で個別ノードを更新**: 特定のサブレコードだけ更新可能。answerData にも自動同期される
+4. **DELETE → POST で再作成**: answerIdは変わるが確実にanswerDataに反映される
 
 #### ARRAY データの更新ルール
 
 - POST（新規作成）: `answerData` にARRAYデータを含めて送信すればanswerDataとノード両方に反映される
 - PUT（全体更新）: 同上だが、データ量が大きい場合504のリスクあり
-- Nodes API PUT: Issue #1325 の自動同期実装により、answerData にも自動反映される。通常は `rebuild-index` の手動呼び出しは不要
+- **PATCH（差分更新・推奨）**: `append`/`update`/`delete` 操作でARRAY要素を個別操作。ネストパス対応でサブサブテーブルまで更新可能。504リスクなし
+- Nodes API PUT: 自動同期実装により、answerData にも自動反映される。通常は `rebuild-index` の手動呼び出しは不要
 
 ---
 
@@ -266,26 +268,28 @@ GET /api/v1/forms/{formId}/answers?limit=50&offset=50&sortField=createdAt&sortOr
   "operations": [
     {
       "op": "replace",
-      "path": "/name",
+      "path": "name",
       "value": "新しい名前"
     },
     {
       "op": "append",
-      "path": "/contracts",
+      "path": "contracts",
       "value": { "contract_name": "新規契約", "amount": 500000 }
     },
     {
       "op": "update",
-      "path": "/contracts[__rowId='01HQA123']",
+      "path": "contracts[__rowId='01HQA123']",
       "value": { "amount": 2000000 }
     },
     {
       "op": "delete",
-      "path": "/contracts[__rowId='01HQA456']"
+      "path": "contracts[__rowId='01HQA456']"
     }
   ]
 }
 ```
+
+> **注意**: `path` にスラッシュ `/` プレフィックスは不要です（RFC 6902形式ではありません）。
 
 ### PatchOperation
 
@@ -498,4 +502,4 @@ Content-Type: `application/zip`
 
 ---
 
-**更新日**: 2026-05-03
+**更新日**: 2026-05-04

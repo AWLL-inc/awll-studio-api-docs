@@ -887,8 +887,10 @@ interface BulkPatchOptions {
   operations: Array<{
     recordId: string;
     expectedVersion?: number;  // 省略時はバージョンチェックスキップ
-    patches: Array<{ op: string; path: string; value?: unknown }>;
-    // または operations キーでも可
+    /** 差分操作リスト（推奨キー名） */
+    patches?: Array<{ op: string; path: string; value?: unknown }>;
+    /** 後方互換エイリアス（patches を優先使用） */
+    operations?: Array<{ op: string; path: string; value?: unknown }>;
   }>;
 }
 
@@ -929,7 +931,7 @@ const result = await bulkPatch({
   operations: selectedIds.map(id => ({
     recordId: id,
     // expectedVersion 省略 → バージョンチェックなし
-    operations: [{ op: 'replace', path: 'industry', value: '新業種' }],
+    patches: [{ op: 'replace', path: 'industry', value: '新業種' }],
   })),
 });
 ```
@@ -943,7 +945,7 @@ const result = await bulkPatch({
   formId: 'FORM_ID',
   operations: Object.entries(grouped).map(([parentId, rows]) => ({
     recordId: parentId,
-    operations: rows.map(row => ({
+    patches: rows.map(row => ({
       op: 'append',
       path: 'departments',
       value: { dept_name: row.dept_name, budget: row.budget },
