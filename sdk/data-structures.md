@@ -671,6 +671,30 @@ JavaScript のオブジェクトは `Object.prototype` を継承するため、`
 
 **設定**: `calculationConfig`で計算式を指定
 
+**FORMULA 数式構文**:
+
+- 演算子: `+`, `-`, `*`, `/`, `()`, 単項マイナス
+- 関数:
+  - 配列集約: `SUM`, `AVG`, `COUNT`
+  - 単項: `FLOOR`, `CEIL` / `CEILING`, `ABS`
+  - 二項: `MIN(a, b)`, `MAX(a, b)`
+  - 可変: `ROUND(x[, n])` — 四捨五入（half-up）
+
+**数式例**:
+
+| 数式 | 用途 |
+|------|------|
+| `"price * quantity"` | 単純な乗算 |
+| `"FLOOR(price * 0.85)"` | 切り捨て |
+| `"CEIL(amount / 100) * 100"` | 100 円単位の切り上げ |
+| `"ROUND(price * 1.1, 2)"` | 小数点 2 桁で四捨五入（half-up） |
+| `"MAX(0, balance)"` | 0 を下限にする |
+| `"SUM(items[*].subtotal)"` | 配列の合計（AGGREGATION でも可） |
+| `"AVG(scores[*].value)"` | 配列の平均 |
+| `"COUNT(items[*].id)"` | 配列の件数 |
+
+> **計算失敗時**: 数式の評価が失敗してもデータベース保存は中断されず、該当フィールドのみ `null` で保存されます。
+
 **例**:
 ```json
 {

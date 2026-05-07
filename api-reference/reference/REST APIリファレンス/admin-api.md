@@ -275,6 +275,76 @@
 
 ---
 
+## ユーザーグループ管理 API
+
+**ベースパス**: `/api/admin/groups`
+**権限**: ADMIN ロール必須
+
+レコード/フィールド権限制御の条件式（`#user.groups.contains('hr')` 等）で参照されるユーザーグループの CRUD およびメンバー管理 API。
+
+### エンドポイント一覧
+
+| メソッド | パス | 説明 |
+|---------|------|------|
+| GET | `/api/admin/groups` | グループ一覧取得 |
+| POST | `/api/admin/groups` | グループ作成 (201) |
+| GET | `/api/admin/groups/{groupId}` | グループ詳細取得 |
+| PUT | `/api/admin/groups/{groupId}` | グループ更新 |
+| DELETE | `/api/admin/groups/{groupId}` | グループ削除 (204) |
+| GET | `/api/admin/groups/{groupId}/members` | メンバー（userId）一覧取得 |
+| POST | `/api/admin/groups/{groupId}/members` | メンバー追加 (204) |
+| DELETE | `/api/admin/groups/{groupId}/members/{userId}` | メンバー削除 (204) |
+| GET | `/api/admin/groups/by-user/{userId}` | 指定ユーザーが所属するグループ一覧 |
+
+### 共通レスポンス: `GroupResponse`
+
+| フィールド | 型 | 説明 |
+|-----------|-----|------|
+| groupId | string (UUID) | グループ ID |
+| name | string | グループ名（同一テナント内で一意） |
+| description | string \| null | 説明 |
+| createdAt | string (ISO 8601) | 作成日時 |
+| updatedAt | string (ISO 8601) | 更新日時 |
+
+### POST `/api/admin/groups` — グループ作成
+
+**リクエスト** (`GroupCreateRequest`):
+
+| フィールド | 型 | 必須 | 制約 |
+|-----------|-----|------|-----|
+| name | string | ✅ | 英字始まり / `[a-zA-Z][a-zA-Z0-9_-]{0,99}` / 最大 100 文字 / テナント内一意 |
+| description | string | ❌ | — |
+
+**レスポンス**: `201 Created` + `GroupResponse`
+
+### PUT `/api/admin/groups/{groupId}` — グループ更新
+
+**リクエスト** (`GroupUpdateRequest`): `GroupCreateRequest` と同形式。
+**レスポンス**: `200 OK` + `GroupResponse`
+
+### POST `/api/admin/groups/{groupId}/members` — メンバー追加
+
+**リクエスト** (`GroupMemberRequest`):
+
+| フィールド | 型 | 必須 |
+|-----------|-----|------|
+| userId | string (UUID) | ✅ |
+
+**レスポンス**: `204 No Content`
+
+> **注意**: 追加対象 `userId` のテナント整合性は API 側で事前検証される。テナント外ユーザーの追加は拒否される。
+
+### エラーコード
+
+| ステータス | 説明 |
+|-----------|------|
+| 400 | name 形式違反 / 同名グループが既存 |
+| 401 | 認証エラー |
+| 403 | ADMIN 権限不足 |
+| 404 | グループ不在 / `by-user` の userId 不在 |
+
+---
+
 ## スクリプトルール API
 
 **ベースパス**: `/api/admin/script-rules`
