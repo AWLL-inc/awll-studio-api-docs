@@ -954,6 +954,39 @@ const result = await bulkPatch({
 });
 ```
 
+### 注意事項
+
+- `bulkCreate` / `bulkPatch` には**オブジェクト1つ**を渡す（位置引数ではない）
+- `formId` と `records`（bulkCreate）/ `operations`（bulkPatch）は**必須**。未指定の場合エラーになる
+- `operations` 内の各要素には `recordId` が必須
+
+```tsx
+// ❌ BAD: 引数を分けて渡す
+bulkPatch(formId, operations);
+
+// ❌ BAD: formId が undefined（useExecutionContext 等から取得した値が未解決）
+const { formId } = useExecutionContext();  // まだ null の可能性
+bulkPatch({ formId, operations });  // → "bulkPatch requires formId and operations"
+
+// ❌ BAD: キー名を間違える（items ではなく operations）
+bulkPatch({ formId, items: [...] });
+
+// ✅ GOOD: オブジェクトで formId と operations を明示
+bulkPatch({
+  formId: 'FORM_ID',
+  operations: [{ recordId: 'xxx', patches: [...] }],
+});
+```
+
+### よくあるエラー
+
+| エラーメッセージ | 原因 | 対処 |
+|----------------|------|------|
+| `bulkCreate requires formId and records` | `formId` または `records` が未指定/null/undefined | 引数オブジェクトに両方を明示的に渡す |
+| `bulkPatch requires formId and operations` | `formId` または `operations` が未指定/null/undefined | 引数オブジェクトに両方を明示的に渡す。キー名は `operations`（`items` ではない） |
+| `Bulk request timeout (120s)` | サーバー処理がタイムアウト | 件数を減らして分割送信する（推奨: 100件ずつ） |
+| `Bulk operation failed` | サーバー側でバリデーションエラー等 | `results` 配列の `error` フィールドを確認 |
+
 ### 制限事項
 
 - 最大500件/リクエスト

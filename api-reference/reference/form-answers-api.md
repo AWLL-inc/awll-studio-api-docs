@@ -14,13 +14,14 @@
 | PATCH | `/api/v1/forms/{formId}/answers/{answerId}` | レコード部分更新（楽観ロック付き） | WRITE |
 | DELETE | `/api/v1/forms/{formId}/answers/{answerId}` | レコード削除 | WRITE + BUSINESS_ACCESS |
 | POST | `/api/v1/forms/{formId}/answers/{answerId}/copy` | レコード複製 | WRITE + BUSINESS_ACCESS |
-| POST | `/api/v1/forms/{formId}/answers/bulk` | 一括作成 | WRITE + BUSINESS_ACCESS |
-| PUT | `/api/v1/forms/{formId}/answers/bulk` | 一括更新 | WRITE + BUSINESS_ACCESS |
-| POST | `/api/v1/forms/{formId}/answers/bulk-delete` | 一括削除 | WRITE + BUSINESS_ACCESS |
+| POST | `/api/v1/forms/{formId}/answers/bulk` | 一括作成（最大500件） | WRITE + BUSINESS_ACCESS |
+| PUT | `/api/v1/forms/{formId}/answers/bulk` | 一括更新（最大500件） | WRITE + BUSINESS_ACCESS |
+| PATCH | `/api/v1/forms/{formId}/answers/bulk` | 一括差分更新（最大500件、楽観ロック付き） | WRITE + BUSINESS_ACCESS |
+| POST | `/api/v1/forms/{formId}/answers/bulk-delete` | 一括削除（最大500件） | WRITE + BUSINESS_ACCESS |
 | POST | `/api/v1/forms/{formId}/answers/export` | CSV出力（ZIP形式） | READ + BUSINESS_ACCESS |
 | POST | `/api/v1/forms/{formId}/answers/rebuild-index` | 検索インデックス再構築 | WRITE + BUSINESS_ACCESS |
 
-> **注意**: 一括操作は `POST /bulk`（一括作成）と `PUT /bulk`（一括更新）で分離されています。
+> **注意**: 一括操作は `POST /bulk`（一括作成）、`PUT /bulk`（一括全体更新）、`PATCH /bulk`（一括差分更新）で分離されています。最大500件/リクエスト。
 
 ### 大量ネストデータの更新に関する注意
 
@@ -28,15 +29,17 @@
 
 #### 回避策
 
-1. **DELETE → POST で再作成**: answerIdは変わるが確実にanswerDataに反映される
-2. **Nodes API で個別ノードを更新**: 特定のサブレコードだけ更新可能。Issue #1325 により answerData にも自動同期される
-3. **UI手動更新**: AWLL Studio画面からの更新は確実に反映される
+1. **PATCH で差分更新（推奨）**: 変更フィールドのみ操作するため504が発生しない。ネストパス対応でサブサブテーブルまで更新可能
+2. **PATCH /bulk で一括差分更新**: 複数レコードの差分更新を1リクエストで実行（最大500件）
+3. **Nodes API で個別ノードを更新**: 特定のサブレコードだけ更新可能。answerData にも自動同期される
+4. **DELETE → POST で再作成**: answerIdは変わるが確実にanswerDataに反映される
 
 #### ARRAY データの更新ルール
 
 - POST（新規作成）: `answerData` にARRAYデータを含めて送信すればanswerDataとノード両方に反映される
 - PUT（全体更新）: 同上だが、データ量が大きい場合504のリスクあり
-- Nodes API PUT: Issue #1325 の自動同期実装により、answerData にも自動反映される。通常は `rebuild-index` の手動呼び出しは不要
+- **PATCH（差分更新・推奨）**: `append`/`update`/`delete` 操作でARRAY要素を個別操作。ネストパス対応でサブサブテーブルまで更新可能。504リスクなし
+- Nodes API PUT: 自動同期実装により、answerData にも自動反映される。通常は `rebuild-index` の手動呼び出しは不要
 
 ---
 
@@ -217,6 +220,22 @@ GET /api/v1/forms/{formId}/answers?limit=50&offset=50&sortField=createdAt&sortOr
 }
 ```
 
+### ARRAY フィールドの更新ルール（重要）
+
+> **変更履歴 (2026-04-21 / PR #1709 / #1728)**
+>
+> ARRAY フィールドの PUT 更新で以下 2 つの挙動を修正しました。クライアント実装時はこの前提で動作設計してください。
+>
+> 1. **空配列 `[]` は「明示的な全削除」として処理される**
+>    - 以前はサブテーブル全削除を無視して旧データが復活していたが、現在は `[]` 送信で配下の子ノードが正しく全削除される。
+>    - 全削除を避けたい場合は、該当 ARRAY フィールドを `answerData` から省略する（未送信なら保持される）。
+>
+> 2. **ARRAY 行のマッチングは `__rowId` ベース**
+>    - 既存行の維持・更新には `__rowId` を必ず付与する。
+>    - `__rowId` が一致しない / 未指定の要素は **新規行扱い**（既存行を上書きしない）。
+>    - 送信されなかった既存行は子孫ノードも含めて cascade 削除される。
+>    - ARRAY の既存行削除 + 新規行追加を同時に行っても、削除行の子データが新規行に混入しない。
+
 ### エラー
 
 | Status | 意味 |
@@ -249,26 +268,28 @@ GET /api/v1/forms/{formId}/answers?limit=50&offset=50&sortField=createdAt&sortOr
   "operations": [
     {
       "op": "replace",
-      "path": "/name",
+      "path": "name",
       "value": "新しい名前"
     },
     {
       "op": "append",
-      "path": "/contracts",
+      "path": "contracts",
       "value": { "contract_name": "新規契約", "amount": 500000 }
     },
     {
       "op": "update",
-      "path": "/contracts[__rowId='01HQA123']",
+      "path": "contracts[__rowId='01HQA123']",
       "value": { "amount": 2000000 }
     },
     {
       "op": "delete",
-      "path": "/contracts[__rowId='01HQA456']"
+      "path": "contracts[__rowId='01HQA456']"
     }
   ]
 }
 ```
+
+> **注意**: `path` にスラッシュ `/` プレフィックスは不要です（RFC 6902形式ではありません）。
 
 ### PatchOperation
 
@@ -360,9 +381,9 @@ GET /api/v1/forms/{formId}/answers?limit=50&offset=50&sortField=createdAt&sortOr
 
 | フィールド | 型 | 必須 | バリデーション |
 |-----------|-----|------|-------------|
-| items | array | Yes | 最大100件 |
+| items | array | Yes | 最大500件 |
 
-### PUT /api/v1/forms/{formId}/answers/bulk（一括更新）
+### PUT /api/v1/forms/{formId}/answers/bulk（一括全体更新）
 
 ```json
 {
@@ -372,6 +393,54 @@ GET /api/v1/forms/{formId}/answers?limit=50&offset=50&sortField=createdAt&sortOr
   ]
 }
 ```
+
+### PATCH /api/v1/forms/{formId}/answers/bulk（一括差分更新）
+
+複数レコードを一括で差分更新します。楽観ロック（expectedVersion）はオプション。
+サブテーブル・サブサブテーブルのネストパスにも対応。
+
+```json
+{
+  "items": [
+    {
+      "answerId": "01ARZ3...",
+      "expectedVersion": 5,
+      "operations": [
+        { "op": "replace", "path": "industry", "value": "IT" },
+        { "op": "append", "path": "departments", "value": { "dept_name": "新部門" } }
+      ]
+    },
+    {
+      "answerId": "01BCD4...",
+      "operations": [
+        { "op": "update", "path": "departments[__rowId='01HQA123'].employees[__rowId='01EMP456']", "value": { "salary": 500000 } }
+      ]
+    }
+  ]
+}
+```
+
+| フィールド | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| items | array | Yes | 最大500件 |
+| items[].answerId | string | Yes | 対象レコードID |
+| items[].expectedVersion | long | No | 楽観ロックバージョン（省略時はチェックスキップ） |
+| items[].operations | array | Yes | 差分操作リスト |
+| items[].operations[].op | string | Yes | `replace` / `append` / `update` / `delete` |
+| items[].operations[].path | string | Yes | フィールドパス（ネスト対応） |
+| items[].operations[].value | any | No | 更新値（deleteの場合は不要） |
+
+#### ネストパスの書式
+
+| パターン | 例 | 説明 |
+|---------|-----|------|
+| トップレベル | `industry` | トップレベルフィールド |
+| サブテーブル（__rowId） | `departments[__rowId='01HQA123']` | __rowIdで要素を特定 |
+| サブテーブル（インデックス） | `departments[0]` | インデックスで要素を特定 |
+| サブサブテーブル | `departments[__rowId='...'].employees[__rowId='...']` | ネストした配列の要素 |
+| ネストフィールド | `departments[0].employees[1].salary` | 特定の値まで辿る |
+
+> **推奨**: `__rowId` セレクタを使用してください。インデックスは配列の並び順に依存するため非推奨です。
 
 ### POST /api/v1/forms/{formId}/answers/bulk-delete（一括削除）
 
@@ -409,6 +478,38 @@ GET /api/v1/forms/{formId}/answers?limit=50&offset=50&sortField=createdAt&sortOr
 }
 ```
 
+### 画面SDK（useBulkMutation）とREST APIのパラメータ名マッピング
+
+画面SDKの `useBulkMutation()` は内部でREST APIを呼び出しますが、パラメータ名が異なります。
+
+#### bulkCreate
+
+| SDK（useBulkMutation） | REST API | 説明 |
+|------------------------|----------|------|
+| `formId` | URL パスパラメータ `{formId}` | 対象データベースID |
+| `records[].data` | `items[].answerData` | レコードデータ |
+
+#### bulkPatch
+
+| SDK（useBulkMutation） | REST API | 説明 |
+|------------------------|----------|------|
+| `formId` | URL パスパラメータ `{formId}` | 対象データベースID |
+| `operations[].recordId` | `items[].answerId` | 対象レコードID |
+| `operations[].expectedVersion` | `items[].expectedVersion` | 楽観ロックバージョン（任意） |
+| `operations[].patches` | `items[].operations` | 差分操作リスト |
+
+> **注意**: SDK側では `formId` と `operations` は**必須**です。どちらかが未指定（undefined/null）の場合、`bulkPatch requires formId and operations` エラーが発生します。引数は位置引数ではなく、**オブジェクト1つ**で渡してください。
+
+```tsx
+// ❌ BAD
+bulkPatch(formId, operations);
+
+// ✅ GOOD
+bulkPatch({ formId: 'FORM_ID', operations: [...] });
+```
+
+詳細は [画面SDK リファレンス — useBulkMutation()](../../../sdk/screen-sdk-reference.md) を参照してください。
+
 ---
 
 ## POST /api/v1/forms/{formId}/answers/export
@@ -433,4 +534,4 @@ Content-Type: `application/zip`
 
 ---
 
-**更新日**: 2026-03-24
+**更新日**: 2026-05-04
