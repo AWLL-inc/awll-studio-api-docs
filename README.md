@@ -2,6 +2,11 @@
 
 AWLL Studio の REST API リファレンスと SDK ドキュメントです。
 
+## 🚀 はじめての方へ
+
+まずは **[GETTING_STARTED.md](./GETTING_STARTED.md)** を読んでください。
+Claude Code に指示するだけで、最初のデータベースと画面ができあがり、ブラウザで確認できるところまで 10〜15 分で体験できます。
+
 ## ドキュメント構成
 
 ### [api-reference/](./api-reference/)
@@ -47,7 +52,7 @@ Screen Builder と Script SDK の開発者向けドキュメント。
 | [security-best-practices.md](./sdk/security-best-practices.md) | セキュリティベストプラクティス |
 | [record-grid-reference.md](./sdk/record-grid-reference.md) | RecordGrid コンポーネント |
 
-## クイックスタート
+## クイックスタート (curl だけで叩きたい場合)
 
 ```bash
 # 1. トークン取得
@@ -63,6 +68,8 @@ curl -s -H "Authorization: Bearer $TOKEN" \
 ```
 
 詳細は [quick-start.md](./api-reference/quick-start.md) を参照。
+
+Claude Code で「DB + 画面を作って動かす」までを通したい方は [GETTING_STARTED.md](./GETTING_STARTED.md) からどうぞ。
 
 ## Swagger UI
 

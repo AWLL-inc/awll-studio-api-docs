@@ -25,8 +25,10 @@ export default defineConfig({
 
   themeConfig: {
     nav: [
+      { text: 'はじめての方へ', link: '/GETTING_STARTED' },
       { text: 'API Reference', link: '/api-reference/' },
       { text: 'SDK', link: '/sdk/' },
+      { text: 'Playbook', link: '/playbook/' },
     ],
 
     sidebar: {

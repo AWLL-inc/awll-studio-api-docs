@@ -194,7 +194,7 @@ REFERENCE フィールド用のレコードサマリーを取得します。
   "formId": "customer-db",
   "isPublic": true,
   "publicToken": "abc123...",
-  "publicUrl": "https://app.awll-studio.ai/public/forms/abc123...",
+  "publicUrl": "https://awll-studio.ai/public/forms/abc123...",
   "expiresAt": "2026-12-31T23:59:59Z",
   "confirmationMessage": "ご回答ありがとうございました"
 }
