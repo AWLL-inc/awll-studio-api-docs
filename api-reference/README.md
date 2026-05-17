@@ -25,15 +25,8 @@ AWLL Studio Platform の REST API 仕様ドキュメントです。
 | [quick-start.md](./quick-start.md) | クイックスタート（curl 実行例） |
 | [api-overview.md](./api-overview.md) | API 概要（エンドポイント一覧・データ構造） |
 | [database-schema.md](./database-schema.md) | データベーススキーマ定義ガイド（フィールド型・実用例） |
-| [screen-builder-sdk.md](./screen-builder-sdk.md) | スクリーンビルダー SDK リファレンス |
 
-### Claude Code / AIエージェント向け
-
-| ファイル | 内容 |
-|----------|------|
-| [CLAUDE.md](./CLAUDE.md) | Claude Code 向けAPI操作ガイダンス（必須ルール・既知の制約） |
-| [settings.yaml](./settings.yaml) | 接続設定ファイル（認証情報テンプレート） |
-| [README-distribution.md](./README-distribution.md) | API構築キット頒布用の説明書 |
+画面 SDK / スクリプト SDK のリファレンスは [/sdk/](../sdk/) を参照してください。
 
 ### reference/ — 詳細リファレンス
 

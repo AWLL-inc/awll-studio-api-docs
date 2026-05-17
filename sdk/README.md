@@ -1,87 +1,40 @@
-# AWLL Studio Platform Skills
+# SDK ドキュメント
 
-AWLL Studioプラットフォーム上で画面定義（React）とビジネスロジック（JavaScript）を作成するためのベストプラクティス集です。
+AWLL Studio で **画面 (React)** と **スクリプト (JavaScript)** を作成するための SDK リファレンスです。Claude Code が画面・スクリプトを生成する際の仕様参照先でもあります。
 
-## 📚 Skills一覧
+## 画面開発 (Screen SDK)
 
-### 画面開発
-- [**screen-development.md**](./screen-development.md) - React画面定義の作成方法とベストプラクティス
-- [**screen-sdk-reference.md**](./screen-sdk-reference.md) - Screen SDK API完全リファレンス
+業務画面を React + TypeScript で構築します。
 
-### ビジネスロジック開発
-- [**script-development.md**](./script-development.md) - JavaScriptスクリプトの作成方法とベストプラクティス
-- [**script-sdk-reference.md**](./script-sdk-reference.md) - Script SDK API完全リファレンス
+| ドキュメント | 内容 |
+|------------|------|
+| [画面開発ガイド](./screen-development.md) | React 画面定義の作成方法とベストプラクティス |
+| [Screen SDK Reference](./screen-sdk-reference.md) | `useRecords` / `useRecord` / `useMutation` 等の Hooks API |
+| [RecordGrid コンポーネント](./record-grid-reference.md) | Notion 風テーブル UI のリファレンス |
 
-### メール送信
-- Script SDK: `api.sendEmail()` でスクリプトルール内からSES経由でメール送信可能
-- REST API: `POST /api/v1/mail/send` で直接メール送信可能
-- 詳細は [script-sdk-reference.md](./script-sdk-reference.md#apisendemaioptions) を参照
+## スクリプト開発 (Script SDK)
 
-### UIコンポーネント
-- [**record-grid-reference.md**](./record-grid-reference.md) - RecordGrid SDK（Notion風テーブルUI）完全リファレンス
+レコード作成・更新時に自動実行されるビジネスロジックを JavaScript で記述します。
 
-### データ構造
-- [**data-structures.md**](./data-structures.md) - データベース定義、回答データ、レコード構造の仕様
+| ドキュメント | 内容 |
+|------------|------|
+| [スクリプト開発ガイド](./script-development.md) | スクリプトの作成方法とベストプラクティス |
+| [Script SDK Reference](./script-sdk-reference.md) | `ON_CREATE` / `ON_UPDATE` / `ON_CHANGE` トリガー、`api.sendEmail()` 等 |
 
-### セキュリティ
-- [**security-best-practices.md**](./security-best-practices.md) - 認証、権限、データアクセスのベストプラクティス
+## 共通仕様・その他
 
-## 🎯 対象ユーザー
+| ドキュメント | 内容 |
+|------------|------|
+| [データ構造仕様](./data-structures.md) | フィールド型・回答データ・レコード構造 |
+| [PDF ダウンロード](./pdf-download.md) | PDF 出力機能の SDK 統合 |
+| [データ更新ベストプラクティス](./data-update-best-practices.md) | 大量更新・並行更新時の注意点 |
+| [エラー分類](./ERROR-CLASSIFICATION.md) | SDK エラーの種類と対処 |
+| [SDK Hooks 移行ガイド](./sdk-hooks-migration.md) | 旧 Hooks からの移行手順 |
+| [セキュリティベストプラクティス](./security-best-practices.md) | 認証・権限・データアクセスの注意点 |
 
-- AWLL Studioプラットフォームで画面を開発する開発者
-- スクリプトでビジネスロジックを実装する開発者
-- プラットフォームAPIを使用するシステム管理者
+## 対象読者
 
-## 🚀 クイックスタート
+- AWLL Studio で画面 / スクリプトをコード生成・編集する **開発者**
+- Claude Code を介してこれらを構築する **業務担当者** (詳細仕様の参照用)
 
-### 1. 画面を作成する
-
-```bash
-# 管理画面にアクセス
-https://awll-studio.ai/admin/screens
-
-# 新規画面作成
-- 画面名: customer_list
-- 画面コード: customer_list
-- ソースコード: screen-development.md を参照
-```
-
-### 2. スクリプトを作成する
-
-```bash
-# 管理画面にアクセス
-https://awll-studio.ai/admin/scripts
-
-# 新規スクリプト作成
-- スクリプト名: customer_validation
-- トリガー: ON_CREATE
-- コード: script-development.md を参照
-```
-
-## 📖 ドキュメント構成
-
-各Skillsファイルは以下の構成で記載されています：
-
-1. **概要**: Skillの目的と対象読者
-2. **基本概念**: 重要な概念の説明
-3. **使い方**: 実際のコード例とステップバイステップガイド
-4. **ベストプラクティス**: 推奨される実装パターン
-5. **アンチパターン**: 避けるべき実装例
-6. **トラブルシューティング**: よくある問題と解決方法
-7. **リファレンス**: API仕様とデータ構造
-
-## 🔗 関連リソース
-
-- [AWLL Studio公式ドキュメント](https://docs.awll-studio.ai)
-- [APIリファレンス](https://api-docs.awll-studio.ai)
-- [コミュニティフォーラム](https://community.awll-studio.ai)
-
-## 📝 更新履歴
-
-- 2026-03-15: RecordGrid SDK リファレンス追加
-- 2026-02-15: フィールドタイプ定義を実装に合わせて更新、技術実装詳細を非表示化
-- 2026-02-04: 初版作成
-
----
-
-**Note**: このSkills集は継続的に更新されます。最新版は常にGitHubリポジトリを参照してください。
+> 💡 まずは Claude Code で画面・スクリプトを作って動かしたい場合は、[はじめての方へ](../GETTING_STARTED.md) と [業務シナリオ例](../business-examples.md) をご覧ください。

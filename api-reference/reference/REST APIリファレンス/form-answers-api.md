@@ -478,6 +478,38 @@ GET /api/v1/forms/{formId}/answers?limit=50&offset=50&sortField=createdAt&sortOr
 }
 ```
 
+### 画面SDK（useBulkMutation）とREST APIのパラメータ名マッピング
+
+画面SDKの `useBulkMutation()` は内部でREST APIを呼び出しますが、パラメータ名が異なります。
+
+#### bulkCreate
+
+| SDK（useBulkMutation） | REST API | 説明 |
+|------------------------|----------|------|
+| `formId` | URL パスパラメータ `{formId}` | 対象データベースID |
+| `records[].data` | `items[].answerData` | レコードデータ |
+
+#### bulkPatch
+
+| SDK（useBulkMutation） | REST API | 説明 |
+|------------------------|----------|------|
+| `formId` | URL パスパラメータ `{formId}` | 対象データベースID |
+| `operations[].recordId` | `items[].answerId` | 対象レコードID |
+| `operations[].expectedVersion` | `items[].expectedVersion` | 楽観ロックバージョン（任意） |
+| `operations[].patches` | `items[].operations` | 差分操作リスト |
+
+> **注意**: SDK側では `formId` と `operations` は**必須**です。どちらかが未指定（undefined/null）の場合、`bulkPatch requires formId and operations` エラーが発生します。引数は位置引数ではなく、**オブジェクト1つ**で渡してください。
+
+```tsx
+// ❌ BAD
+bulkPatch(formId, operations);
+
+// ✅ GOOD
+bulkPatch({ formId: 'FORM_ID', operations: [...] });
+```
+
+詳細は [画面SDK リファレンス — useBulkMutation()](../../../sdk/screen-sdk-reference.md) を参照してください。
+
 ---
 
 ## POST /api/v1/forms/{formId}/answers/export

@@ -26,9 +26,15 @@ export default defineConfig({
   themeConfig: {
     nav: [
       { text: 'はじめての方へ', link: '/GETTING_STARTED' },
-      { text: 'API Reference', link: '/api-reference/' },
-      { text: 'SDK', link: '/sdk/' },
-      { text: 'Playbook', link: '/playbook/' },
+      { text: '業務シナリオ例', link: '/business-examples' },
+      {
+        text: '詳細リファレンス',
+        items: [
+          { text: 'API Reference', link: '/api-reference/' },
+          { text: 'SDK', link: '/sdk/' },
+          { text: 'Playbook', link: '/playbook/' },
+        ],
+      },
     ],
 
     sidebar: {
@@ -41,7 +47,6 @@ export default defineConfig({
             { text: 'API概要', link: '/api-reference/api-overview' },
             { text: '認証ガイド', link: '/api-reference/authentication' },
             { text: 'データベーススキーマ定義', link: '/api-reference/database-schema' },
-            { text: 'スクリーンビルダー SDK', link: '/api-reference/screen-builder-sdk' },
           ]
         },
         {
@@ -59,6 +64,8 @@ export default defineConfig({
             { text: '管理者専用 API', link: '/api-reference/reference/REST APIリファレンス/admin-api' },
             { text: 'メール送信 API', link: '/api-reference/reference/REST APIリファレンス/mail-api' },
             { text: 'AI生成 API', link: '/api-reference/reference/REST APIリファレンス/ai-api' },
+            { text: 'PDF 出力 API', link: '/api-reference/reference/REST APIリファレンス/pdf-api' },
+            { text: 'OpenAPI 仕様補足', link: '/api-reference/reference/REST APIリファレンス/corrections' },
           ]
         },
         {
@@ -79,10 +86,28 @@ export default defineConfig({
             { text: 'スクリプト開発ガイド', link: '/sdk/script-development' },
             { text: 'Script SDK Reference', link: '/sdk/script-sdk-reference' },
             { text: 'RecordGrid コンポーネント', link: '/sdk/record-grid-reference' },
+            { text: 'PDF ダウンロード', link: '/sdk/pdf-download' },
+            { text: 'データ更新ベストプラクティス', link: '/sdk/data-update-best-practices' },
+            { text: 'エラー分類', link: '/sdk/ERROR-CLASSIFICATION' },
+            { text: 'SDK Hooks 移行ガイド', link: '/sdk/sdk-hooks-migration' },
             { text: 'セキュリティベストプラクティス', link: '/sdk/security-best-practices' },
           ]
         },
-      ]
+      ],
+      '/playbook/': [
+        {
+          text: 'Playbook',
+          items: [
+            { text: '概要', link: '/playbook/' },
+            { text: 'セットアップ', link: '/playbook/setup-guide' },
+            { text: 'API 操作原則', link: '/playbook/api-operation-guide' },
+            { text: 'データ更新のコツ', link: '/playbook/data-update-tips' },
+            { text: 'ベストプラクティス', link: '/playbook/best-practices' },
+            { text: 'スキル作成テンプレート', link: '/playbook/skill-template' },
+            { text: '週次運用サイクル', link: '/playbook/weekly-workflow' },
+          ]
+        },
+      ],
     },
 
     search: {

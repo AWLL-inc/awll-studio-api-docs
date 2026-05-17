@@ -79,5 +79,4 @@ API 仕様を WebFetch で参照しながらコーディングを支援します
 ## 関連ファイル
 
 - 体験ガイド本体: [GETTING_STARTED.md](./GETTING_STARTED.md)
-- Claude Code 詳細セットアップ: [CLAUDE_CODE_SETUP.md](./CLAUDE_CODE_SETUP.md)
 - Playbook セットアップ: [playbook/setup-guide.md](./playbook/setup-guide.md)
