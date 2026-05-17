@@ -9,8 +9,8 @@ export default defineConfig({
     ['meta', { name: 'robots', content: 'noindex, nofollow' }],
   ],
 
-  // CLAUDE.md はAIエージェント向け内部ドキュメントのためビルドから除外
-  srcExclude: ['**/CLAUDE.md'],
+  // CLAUDE.md と ANNOUNCEMENT.md は社内向けドキュメントのためビルドから除外
+  srcExclude: ['**/CLAUDE.md', 'ANNOUNCEMENT.md'],
 
   // 既存Markdownの相対リンク（ディレクトリ参照）がindex.mdを想定するためdead link扱いになる
   ignoreDeadLinks: true,
