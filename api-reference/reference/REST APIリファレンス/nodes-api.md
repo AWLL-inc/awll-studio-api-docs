@@ -76,8 +76,10 @@
 | POST | `/api/answers/{answerId}/nodes/{rowId}/copy` | ノードを複製 |
 | POST | `/api/answers/{answerId}/nodes/repair-orphans` | 参照切れノード検出・修復（ADMIN専用） |
 | POST | `/api/answers/{answerId}/nodes/cleanup-ghosts` | ゴースト子ノード検出・削除（ADMIN専用） |
+| **POST** | **`/api/answers/bulk-nodes`** | **複数answerIdのノードを一括取得** |
 
 > **注意**: パスは `/api/answers/{answerId}/nodes` で、`/api/v1/` プレフィックスがありません。
+> **一括取得API** (`/api/answers/bulk-nodes`) は `{answerId}` パス変数を使用しない別パスです。
 
 ---
 
@@ -95,6 +97,8 @@
 | fieldCode | string | No | - | フィールドコードでフィルタ |
 | limit | integer | No | 100 | 取得件数上限（1〜1000） |
 | offset | integer | No | 0 | オフセット |
+| sortBy | string | No | - | ソートフィールド（`rowId`, `depth`, `fieldCode`, `data.{fieldName}`） |
+| sortOrder | string | No | asc | ソート順（`asc` / `desc`） |
 
 > **注意**: `parentRowId` と `ancestorRowId` は排他です。両方指定すると 400 Bad Request になります。どちらも未指定の場合は全ノードを取得します（従来互換）。
 >
@@ -109,6 +113,8 @@
 | `?ancestorRowId={rowId}` | 特定サブツリーの全データを取得（他の兄弟ツリーは除外） |
 | `?depth=1&limit=50` | 特定階層のノードをページネーション付きで取得 |
 | `?fieldCode=tasks&limit=100` | 特定フィールドコードのノードのみ取得 |
+| `?depth=1&sortBy=data.name&sortOrder=asc` | サブテーブル行を名前順でソート |
+| `?sortBy=rowId&sortOrder=desc` | 作成日時の降順で取得 |
 
 ### curl例
 
@@ -667,4 +673,100 @@ POST /api/answers/{answerId}/nodes
 
 ---
 
-**更新日**: 2026-04-15
+## POST /api/answers/bulk-nodes
+
+複数の回答ID（answerId）に属するノードを **1回のAPIコール** で一括取得します。
+`GET /api/answers/{answerId}/nodes` を個別に呼び出す N+1 問題を解消します。
+
+### ユースケース
+
+- 全顧客の契約一覧を横断表示（765顧客×個別API → 1回の一括取得）
+- レートリミット（60req/min）回避
+- SDK Hook `useBulkNodes` のバックエンド
+
+### リクエスト
+
+```json
+POST /api/answers/bulk-nodes
+Content-Type: application/json
+Authorization: Bearer <token>
+X-Tenant-Code: <tenant_code>
+
+{
+  "answerIds": ["answer-001", "answer-002", "answer-003"],
+  "depth": 1,
+  "fieldCode": "contracts"
+}
+```
+
+| パラメータ | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| `answerIds` | `string[]` | Yes | 取得対象の回答IDリスト（1〜500件） |
+| `depth` | `number` | No | 階層フィルタ（0=ルート, 1=サブテーブル, 2=サブサブテーブル） |
+| `fieldCode` | `string` | No | ARRAYフィールドフィルタ |
+
+### レスポンス
+
+```json
+{
+  "results": {
+    "answer-001": {
+      "items": [
+        {
+          "rowId": "01ABC...",
+          "parentRowId": "01ROOT...",
+          "answerRef": "answer-001",
+          "fieldCode": "contracts",
+          "depth": 1,
+          "ancestorPath": "01ROOT...",
+          "data": {
+            "contract_name": "Contract Alpha",
+            "amount": 1500000,
+            "start_date": "2026-01-01",
+            "status": "Active"
+          }
+        }
+      ],
+      "totalCount": 3
+    },
+    "answer-002": {
+      "items": [...],
+      "totalCount": 2
+    }
+  },
+  "errors": {}
+}
+```
+
+### レスポンスフィールド
+
+| フィールド | 型 | 説明 |
+|-----------|-----|------|
+| `results` | `Record<string, { items, totalCount }>` | answerIdごとの成功結果 |
+| `results[].items` | `NodeResponse[]` | フィルタ済みノードリスト |
+| `results[].totalCount` | `number` | ノード件数 |
+| `errors` | `Record<string, string>` | answerIdごとのエラーメッセージ |
+
+### 部分エラー
+
+1件のanswerIdの取得に失敗しても、他のanswerIdの結果は正常に返却されます。
+失敗したanswerIdは `errors` マップに記録されます。
+
+### ステータスコード
+
+| コード | 説明 |
+|--------|------|
+| 200 | 成功（部分エラーを含む場合あり） |
+| 400 | バリデーションエラー（answerIdsが空または500件超過） |
+| 401 | 認証エラー |
+| 403 | 権限不足 |
+
+### 制約
+
+- `answerIds` は最大500件
+- テナント分離は `TenantContext` + DynamoDB PKプレフィックスで保証
+- 存在しないanswerIdは `results` に空の `items: []` で返却（エラーではない）
+
+---
+
+**更新日**: 2026-05-18

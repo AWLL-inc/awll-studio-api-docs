@@ -1076,6 +1076,108 @@ const { data } = useNodes({
 
 ---
 
+## useBulkNodes()
+
+複数レコード（answerId）のノードを **1回のAPIコール** で一括取得するフック。
+`useRecords` で取得した一覧の各レコードに対して `useNodes` を個別呼出しすると N+1 問題が発生するケースを解消します。
+
+### ユースケース
+
+- 全顧客の契約一覧を横断表示（例: 765顧客×契約データ）
+- レートリミット（60req/min）回避
+- ダッシュボード画面での集計表示
+
+### シグネチャ
+
+```typescript
+function useBulkNodes(options: UseBulkNodesOptions): UseBulkNodesResult
+```
+
+### UseBulkNodesOptions
+
+| パラメータ | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| `answerIds` | `string[]` | Yes | レコードIDリスト（1〜500件） |
+| `depth` | `number` | No | 階層フィルタ（0=ルート, 1=サブテーブル, 2=サブサブテーブル） |
+| `fieldCode` | `string` | No | ARRAYフィールドフィルタ |
+| `enabled` | `boolean` | No | フック有効/無効（デフォルトtrue） |
+
+### UseBulkNodesResult
+
+| プロパティ | 型 | 説明 |
+|-----------|-----|------|
+| `data` | `Record<string, { items: NodeItem[]; totalCount: number }>` | answerIdごとのノードリスト |
+| `errors` | `Record<string, string>` | answerIdごとのエラーメッセージ |
+| `isLoading` | `boolean` | 初回読み込み中 |
+| `isFetching` | `boolean` | 再取得中 |
+| `error` | `AwllError \| null` | リクエスト全体のエラー |
+| `refetch` | `() => void` | 手動再取得 |
+
+### 使用例
+
+```tsx
+import { useRecords, useBulkNodes } from '@awll/sdk';
+
+export default function ContractOverview() {
+  // 1. 全顧客を取得
+  const records = useRecords({ formId: FORM_ID, pagination: { page: 1, pageSize: 100 } });
+  const answerIds = (records.data || []).map(r => r.recordId);
+
+  // 2. 全顧客の契約データを一括取得（1回のAPIコール）
+  const { data, errors, isLoading } = useBulkNodes({
+    answerIds,
+    depth: 1,
+    fieldCode: 'contracts',
+    enabled: answerIds.length > 0,
+  });
+
+  if (isLoading) return <div>読み込み中...</div>;
+
+  // 3. 横断テーブル表示
+  return (
+    <table>
+      {Object.entries(data).map(([answerId, result]) => (
+        result.items.map(node => (
+          <tr key={node.rowId}>
+            <td>{answerId}</td>
+            <td>{node.data.contract_name}</td>
+            <td>{node.data.amount}</td>
+          </tr>
+        ))
+      ))}
+    </table>
+  );
+}
+```
+
+### N+1 問題の比較
+
+```tsx
+// ❌ N+1: レコードごとに個別API呼出し（765回 → レートリミット超過）
+const records = useRecords({ formId });
+records.data.forEach(r => {
+  const nodes = useNodes({ answerId: r.recordId, depth: 1 }); // Hook rulesにも違反
+});
+
+// ✅ 1回: useBulkNodes で一括取得
+const { data } = useBulkNodes({
+  answerIds: records.data.map(r => r.recordId),
+  depth: 1,
+  fieldCode: 'contracts',
+  enabled: records.data.length > 0,
+});
+```
+
+### 制約事項
+
+| 項目 | 制限 |
+|------|------|
+| answerIds最大件数 | 500件/リクエスト |
+| 部分エラー | 1件の失敗が全体をブロックしない（errors に記録） |
+| バックエンド実行 | 現時点では逐次DynamoDBクエリ（将来的に並列化予定） |
+
+---
+
 ## useSearch()
 
 高度検索フック。`POST /api/search/advanced` を利用し、12 種の演算子 / AND・OR / BETWEEN / IN / loadMore（無限スクロール）に対応。
