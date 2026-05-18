@@ -3156,7 +3156,7 @@
           "Invitations"
         ],
         "summary": "招待承認（トークン指定）",
-        "description": "\n            メールリンクのトークンで招待を承認し、ユーザーレコードとロールを作成します。\n\n            **権限:** 認証済みユーザー（ADMIN不要）\n        ",
+        "description": "\n            メールリンクのトークンで招待を承認し、ユーザーレコードとロールを作成します。\n\n            **前提:** 認証済みセッションで呼び出すこと。事前に `/api/auth/me` などの認証ガード API を一度通してください。直接呼び出した場合、ユーザーが未プロビジョニングなら 404 を返します。\n\n            **権限:** 認証済みユーザー（ADMIN不要）\n        ",
         "operationId": "acceptInvitationByToken",
         "parameters": [
           {
@@ -3192,6 +3192,26 @@
           },
           "401": {
             "description": "認証エラー",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "招待の受取人が一致しない (招待されたメールアドレスでサインインしてください)",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "ユーザー未プロビジョニング (`/api/auth/me` を先に呼び出してください)",
             "content": {
               "*/*": {
                 "schema": {
