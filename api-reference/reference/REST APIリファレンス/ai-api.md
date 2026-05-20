@@ -190,7 +190,17 @@ curl -X POST "${BASE_URL}/api/v1/ai/generate" \
 | attachments[].content.type | string | Yes | `text` / `image` / `document` |
 | attachments[].content.text | string | No | テキストコンテンツ（type=text時） |
 | attachments[].content.source | object | No | 画像ソース（type=image時、base64） |
-| model | string | No | 使用AIモデル（省略時はデフォルト） |
+| model | string | No | 使用AIモデル（省略時はデフォルト）。下記の許可モデル一覧を参照 |
+
+#### 許可モデル一覧
+
+| モデルID | 説明 | 特徴 |
+|----------|------|------|
+| `claude-sonnet-4-20250514` | Claude Sonnet 4（デフォルト） | バランス型。速度とコストのバランスが良い |
+| `claude-opus-4-20250514` | Claude Opus 4 | 最高精度。複雑な推論・長文生成に最適 |
+| `claude-haiku-4-5-20251001` | Claude Haiku 4.5 | 高速・低コスト。簡単なタスクに最適 |
+
+> **注意**: 上記以外のモデルIDを指定すると `400 Bad Request`（バリデーションエラー）が返されます。
 
 ### レスポンス (200) — SSE ストリーム
 

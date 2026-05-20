@@ -102,11 +102,36 @@
 | GET | `/api/v1/mail/usage` | テナント月次メール使用量取得（ADMIN権限） |
 | GET | `/api/v1/mail/usage/all` | 全テナント月次メール使用量取得（SUPER_ADMIN権限） |
 
-### AI生成
+### ファイル操作
 
 | Method | Path | 説明 |
 |--------|------|------|
-| POST | `/api/v1/ai/generate` | プロンプト + コンテキストからテキスト生成（USER/ADMIN権限、レート制限: ユーザー10回/分・テナント100回/時、タイムアウト120秒） |
+| POST | `/api/v1/files/presign/upload` | アップロード用 presigned URL 発行（FORM_ANSWER:WRITE + BUSINESS_ACCESS） |
+| GET | `/api/v1/files/presign/download` | ダウンロード用 presigned URL 発行（FORM_ANSWER:READ + BUSINESS_ACCESS） |
+| DELETE | `/api/v1/files` | ファイル削除（FORM_ANSWER:WRITE + BUSINESS_ACCESS） |
+
+### PDF出力
+
+| Method | Path | 説明 |
+|--------|------|------|
+| POST | `/api/v1/pdf/generate` | テンプレートベースPDF生成（presigned URL返却） |
+
+### AI
+
+| Method | Path | 説明 |
+|--------|------|------|
+| POST | `/api/v1/ai/generate` | テキスト生成（USER/ADMIN権限、レート制限: ユーザー10回/分・テナント100回/時、タイムアウト120秒） |
+| GET | `/api/v1/ai/consent` | AI利用同意状態取得 |
+| POST | `/api/v1/ai/consent` | AI利用同意を記録 |
+| POST | `/api/v1/ai/chat` | AIチャット（SSEストリーミング、attachments でファイル添付可） |
+| GET | `/api/v1/ai/chat/{jobId}/stream` | SSE再接続 |
+| GET | `/api/v1/ai/chat/{jobId}/status` | ジョブステータス確認 |
+| GET | `/api/v1/ai/conversations` | 会話一覧取得 |
+| GET | `/api/v1/ai/conversations/{conversationId}/messages` | 会話メッセージ取得 |
+| DELETE | `/api/v1/ai/conversations/{conversationId}` | 会話削除 |
+| POST | `/api/v1/ai/chat/{conversationId}/confirm` | Write操作の承認/却下 |
+| POST | `/api/v1/ai/upload` | ファイルアップロード（AI解析用、5MB上限） |
+| GET | `/api/v1/ai/health` | AIヘルスチェック |
 
 ### スクリプトルール（Admin）
 
@@ -220,7 +245,7 @@
 | REFERENCE | 他データベースへの参照 | `"ANSWER#01ARZ3..."` |
 | CALCULATED | 自動計算 | （自動算出。入力不要） |
 | USER | ユーザー選択 | `"user-uuid"` |
-| FILE | ファイル添付 | （ファイルメタデータ） |
+| FILE | ファイル添付 | `{"key":"tenants/.../file.pdf","fileName":"file.pdf","mimeType":"application/pdf","size":245760,"uploadedAt":"2026-05-20T10:00:00Z"}` |
 
 ### 楽観ロック（PATCH）
 

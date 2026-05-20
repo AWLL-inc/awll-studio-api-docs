@@ -23,6 +23,9 @@ AWLL Studio Platform の REST API 仕様ドキュメント。
 | [users-permissions-api.md](./users-permissions-api.md) | ユーザー・権限・招待 API |
 | [admin-api.md](./admin-api.md) | 管理者専用 API（ロール・ユーザー管理・スクリプトルール） |
 | [mail-api.md](./mail-api.md) | メール送信 API（SES経由送信・使用量管理） |
+| [pdf-api.md](./pdf-api.md) | PDF出力 API（テンプレートベースPDF生成） |
+| [ai-api.md](./ai-api.md) | AI API（テキスト生成・AIチャット・ファイルアップロード） |
+| [file-api.md](./file-api.md) | ファイル操作 API（presigned URL によるアップロード・ダウンロード・削除） |
 | [corrections.md](./corrections.md) | reference版からの修正点一覧 |
 
 ## 共通仕様
@@ -68,7 +71,7 @@ Content-Type: application/json; charset=utf-8
 
 ### Rate Limiting
 
-- **制限**: 60 requests / minute（ユーザー単位）
+- **制限**: 500 requests / minute（ユーザー単位）
 - **超過時**: HTTP 429 Too Many Requests
 - **ヘッダー**: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`
 

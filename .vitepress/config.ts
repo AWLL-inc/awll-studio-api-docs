@@ -65,6 +65,7 @@ export default defineConfig({
             { text: 'メール送信 API', link: '/api-reference/reference/REST APIリファレンス/mail-api' },
             { text: 'AI生成 API', link: '/api-reference/reference/REST APIリファレンス/ai-api' },
             { text: 'PDF 出力 API', link: '/api-reference/reference/REST APIリファレンス/pdf-api' },
+            { text: 'ファイル操作 API', link: '/api-reference/reference/REST APIリファレンス/file-api' },
             { text: 'OpenAPI 仕様補足', link: '/api-reference/reference/REST APIリファレンス/corrections' },
           ]
         },
