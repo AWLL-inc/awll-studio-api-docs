@@ -91,6 +91,7 @@ export default defineConfig({
             { text: 'データ更新ベストプラクティス', link: '/sdk/data-update-best-practices' },
             { text: 'エラー分類', link: '/sdk/ERROR-CLASSIFICATION' },
             { text: 'SDK Hooks 移行ガイド', link: '/sdk/sdk-hooks-migration' },
+            { text: '計算フィールドリファレンス', link: '/sdk/calculated-field-reference' },
             { text: 'セキュリティベストプラクティス', link: '/sdk/security-best-practices' },
           ]
         },
