@@ -1078,6 +1078,8 @@ const { data } = useNodes({
 
 ## useBulkNodes()
 
+> **制約**: このフックは **フロントエンド本体（直接 import）でのみ使用可能** です。iframe 内の画面コード（Screen SDK ブリッジ経由）では使用できません。iframe 内では `useNodes` を個別に呼び出してください。
+
 複数レコード（answerId）のノードを **1回のAPIコール** で一括取得するフック。
 `useRecords` で取得した一覧の各レコードに対して `useNodes` を個別呼出しすると N+1 問題が発生するケースを解消します。
 
@@ -1510,6 +1512,7 @@ function useNavigation(): UseNavigationResult
 | `navigateToForm` | `(formId, options?) => Promise<{success}>` | DB一覧/新規作成/編集に遷移 |
 | `navigateToExternalUrl` | `(url, options?) => Promise<{success}>` | 外部URLに遷移 |
 | `goBack` | `() => Promise<{success}>` | 前の画面に戻る |
+| `updateQueryParams` | `(params, options?) => Promise<{success}>` | クエリパラメータを更新（画面遷移なし） |
 | `isNavigating` | `boolean` | 遷移処理中フラグ |
 
 ### navigateToScreen
@@ -1549,13 +1552,27 @@ navigateToExternalUrl(url: string, options?: { newTab?: boolean }): Promise<{suc
 | `url` | `string` | Yes | 遷移先URL（`http:` / `https:` のみ許可） |
 | `options.newTab` | `boolean` | No | `true` で新しいタブで開く（デフォルト: `false`） |
 
+### updateQueryParams
+
+```typescript
+updateQueryParams(params: Record<string, string>, options?: { merge?: boolean; push?: boolean }): Promise<{success: boolean}>
+```
+
+| 引数 | 型 | 必須 | 説明 |
+|------|-----|------|------|
+| `params` | `Record<string, string>` | Yes | 設定するクエリパラメータ |
+| `options.merge` | `boolean` | No | `true`: 既存パラメータに追加/上書き。`false`（デフォルト）: 完全に置換 |
+| `options.push` | `boolean` | No | `true`: ブラウザ履歴に追加（戻るボタン対応）。`false`（デフォルト）: 現在のエントリを置換 |
+
+> **注意**: `updateQueryParams` はページ遷移を伴わず、URLのクエリパラメータのみを更新します。更新後、`useExecutionContext()` の `context.query` に反映されます。
+
 ### 使用例
 
 ```tsx
 import { useNavigation } from '@awll/sdk';
 
 export default function DealManagement() {
-  const { navigateToScreen, navigateToForm, goBack, isNavigating } = useNavigation();
+  const { navigateToScreen, navigateToForm, goBack, updateQueryParams, isNavigating } = useNavigation();
 
   // 別画面に遷移（クエリパラメータ付き）
   const handleViewBilling = async (month: string) => {

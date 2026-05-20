@@ -172,7 +172,7 @@ API操作オブジェクト（詳細は後述）
 
 - `formId` (string, 必須): データベースID
 - `options` (object, オプション):
-  - `limit` (number): 取得件数（デフォルト: 20、最大: 1000）
+  - `limit` (number): 取得件数（デフォルト: 20、最大: 100）
   - `nextToken` (string): ページネーショントークン
 
 #### 戻り値
