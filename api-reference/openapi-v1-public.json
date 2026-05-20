@@ -80,6 +80,42 @@
     {
       "name": "Admin Groups",
       "description": "管理者用ユーザーグループ API - グループの CRUD およびメンバー管理（権限制御 DSL の `#user.groups.contains(...)` で参照）"
+    },
+    {
+      "name": "Auth Token",
+      "description": "認証トークンAPI - メール/パスワードでトークン取得・更新"
+    },
+    {
+      "name": "Files",
+      "description": "ファイル操作API - S3 presigned URLによるアップロード・ダウンロード・削除"
+    },
+    {
+      "name": "Mail",
+      "description": "メール送信API - SES経由のメール送信・使用量管理"
+    },
+    {
+      "name": "PDF",
+      "description": "PDF帳票生成API - テンプレートベースのPDF生成"
+    },
+    {
+      "name": "AI Generate",
+      "description": "AIテキスト生成API"
+    },
+    {
+      "name": "AI Consent",
+      "description": "AI利用同意管理API"
+    },
+    {
+      "name": "AI Agent",
+      "description": "AIエージェントAPI - チャット・ストリーミング・会話管理"
+    },
+    {
+      "name": "Actions",
+      "description": "カスタムアクション実行API - ON_BUTTON_CLICKルール実行"
+    },
+    {
+      "name": "Personal Menu",
+      "description": "個人メニューカスタマイズAPI"
     }
   ],
   "paths": {
@@ -6191,6 +6227,1294 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/auth/token": {
+      "post": {
+        "tags": [
+          "Auth Token"
+        ],
+        "summary": "トークン取得",
+        "operationId": "getToken",
+        "security": [],
+        "description": "メールアドレスとパスワードでCognito認証し、IDトークン・アクセストークン・リフレッシュトークンを取得します。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "email",
+                  "password"
+                ],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "メールアドレス",
+                    "example": "user@example.com"
+                  },
+                  "password": {
+                    "type": "string",
+                    "description": "パスワード",
+                    "minLength": 1,
+                    "maxLength": 256
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "認証成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "idToken": {
+                      "type": "string",
+                      "description": "IDトークン（Bearer認証に使用）"
+                    },
+                    "accessToken": {
+                      "type": "string",
+                      "description": "アクセストークン"
+                    },
+                    "refreshToken": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "リフレッシュトークン"
+                    },
+                    "expiresIn": {
+                      "type": "integer",
+                      "description": "有効期限（秒）",
+                      "example": 3600
+                    },
+                    "tokenType": {
+                      "type": "string",
+                      "example": "Bearer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "認証エラー"
+          }
+        }
+      }
+    },
+    "/api/auth/token/refresh": {
+      "post": {
+        "tags": [
+          "Auth Token"
+        ],
+        "summary": "トークン更新",
+        "operationId": "refreshToken",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "refreshToken"
+                ],
+                "properties": {
+                  "refreshToken": {
+                    "type": "string",
+                    "description": "リフレッシュトークン"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "更新成功"
+          },
+          "401": {
+            "description": "リフレッシュトークン無効"
+          }
+        }
+      }
+    },
+    "/api/v1/files/presign/upload": {
+      "post": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "アップロード用presigned URL発行",
+        "operationId": "presignUpload",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "fieldId",
+                  "fileName",
+                  "mimeType",
+                  "sizeBytes"
+                ],
+                "properties": {
+                  "fieldId": {
+                    "type": "string",
+                    "description": "フィールドコード"
+                  },
+                  "formId": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "データベースID"
+                  },
+                  "answerId": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "レコードID"
+                  },
+                  "fileName": {
+                    "type": "string",
+                    "description": "ファイル名"
+                  },
+                  "mimeType": {
+                    "type": "string",
+                    "description": "MIMEタイプ",
+                    "example": "application/pdf"
+                  },
+                  "sizeBytes": {
+                    "type": "integer",
+                    "format": "int64",
+                    "description": "ファイルサイズ（バイト）",
+                    "minimum": 1
+                  },
+                  "maxSizeBytes": {
+                    "type": "integer",
+                    "format": "int64",
+                    "nullable": true,
+                    "description": "上限バイト数（未指定時100MB）"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "presigned URL発行成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string",
+                      "description": "S3オブジェクトキー"
+                    },
+                    "uploadUrl": {
+                      "type": "string",
+                      "description": "presigned PUT URL（5分有効）"
+                    },
+                    "headers": {
+                      "type": "object",
+                      "nullable": true,
+                      "description": "S3 PUT時に付与すべきヘッダー",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "expiresAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "URL有効期限"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "バリデーションエラー"
+          },
+          "401": {
+            "description": "認証エラー"
+          },
+          "403": {
+            "description": "権限不足"
+          }
+        }
+      }
+    },
+    "/api/v1/files/presign/download": {
+      "get": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "ダウンロード用presigned URL発行",
+        "operationId": "presignDownload",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "S3オブジェクトキー"
+          },
+          {
+            "name": "download",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "description": "Content-Disposition: attachment設定"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "presigned URL発行成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string",
+                      "description": "presigned GET URL（15分有効）"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "認証エラー"
+          },
+          "403": {
+            "description": "権限不足"
+          }
+        }
+      }
+    },
+    "/api/v1/files": {
+      "delete": {
+        "tags": [
+          "Files"
+        ],
+        "summary": "ファイル削除",
+        "operationId": "deleteFile",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "S3オブジェクトキー"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "削除成功"
+          },
+          "401": {
+            "description": "認証エラー"
+          },
+          "403": {
+            "description": "権限不足"
+          }
+        }
+      }
+    },
+    "/api/v1/mail/send": {
+      "post": {
+        "tags": [
+          "Mail"
+        ],
+        "summary": "メール送信",
+        "operationId": "sendMail",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "to",
+                  "subject",
+                  "body"
+                ],
+                "properties": {
+                  "to": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "送信先"
+                  },
+                  "subject": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "description": "件名"
+                  },
+                  "body": {
+                    "type": "string",
+                    "maxLength": 10000,
+                    "description": "本文"
+                  },
+                  "templateVariables": {
+                    "type": "object",
+                    "nullable": true,
+                    "description": "テンプレート変数",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  },
+                  "cc": {
+                    "type": "array",
+                    "nullable": true,
+                    "items": {
+                      "type": "string",
+                      "format": "email"
+                    },
+                    "maxItems": 50
+                  },
+                  "bcc": {
+                    "type": "array",
+                    "nullable": true,
+                    "items": {
+                      "type": "string",
+                      "format": "email"
+                    },
+                    "maxItems": 50
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "送信結果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "messageId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "SENT",
+                        "FAILED"
+                      ]
+                    },
+                    "error": {
+                      "type": "string",
+                      "nullable": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "バリデーションエラー"
+          },
+          "403": {
+            "description": "権限不足（ADMIN/DEVELOPER必須）"
+          }
+        }
+      }
+    },
+    "/api/v1/mail/usage": {
+      "get": {
+        "tags": [
+          "Mail"
+        ],
+        "summary": "メール月次使用量取得",
+        "operationId": "getMailUsage",
+        "parameters": [
+          {
+            "name": "month",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "対象月（yyyy-MM）"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "使用量",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "tenantCode": {
+                      "type": "string"
+                    },
+                    "month": {
+                      "type": "string"
+                    },
+                    "sentCount": {
+                      "type": "integer"
+                    },
+                    "failedCount": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "権限不足（ADMIN必須）"
+          }
+        }
+      }
+    },
+    "/api/v1/pdf/generate": {
+      "post": {
+        "tags": [
+          "PDF"
+        ],
+        "summary": "PDF帳票生成",
+        "operationId": "generatePdf",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "templateName"
+                ],
+                "properties": {
+                  "templateName": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9-]+$",
+                    "description": "テンプレート名"
+                  },
+                  "variables": {
+                    "type": "object",
+                    "description": "テンプレート変数",
+                    "default": {}
+                  },
+                  "fileName": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 100,
+                    "description": "ファイル名（拡張子なし）"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "PDF生成成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "downloadUrl": {
+                      "type": "string",
+                      "description": "署名付きURL（15分有効）"
+                    },
+                    "key": {
+                      "type": "string",
+                      "description": "S3キー"
+                    },
+                    "expiresAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "バリデーションエラー"
+          },
+          "404": {
+            "description": "テンプレート不明"
+          },
+          "500": {
+            "description": "PDF生成失敗"
+          }
+        }
+      }
+    },
+    "/api/v1/ai/generate": {
+      "post": {
+        "tags": [
+          "AI Generate"
+        ],
+        "summary": "AIテキスト生成",
+        "operationId": "aiGenerate",
+        "description": "レート制限: ユーザー10回/分、テナント100回/時。タイムアウト120秒。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "prompt"
+                ],
+                "properties": {
+                  "prompt": {
+                    "type": "string",
+                    "maxLength": 10000,
+                    "description": "ユーザープロンプト"
+                  },
+                  "contextData": {
+                    "type": "object",
+                    "nullable": true,
+                    "description": "コンテキストデータ"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "生成成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "generatedText": {
+                      "type": "string"
+                    },
+                    "usage": {
+                      "type": "object",
+                      "properties": {
+                        "inputTokens": {
+                          "type": "integer"
+                        },
+                        "outputTokens": {
+                          "type": "integer"
+                        },
+                        "model": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "バリデーションエラー"
+          },
+          "429": {
+            "description": "レート制限超過"
+          },
+          "504": {
+            "description": "タイムアウト"
+          }
+        }
+      }
+    },
+    "/api/v1/ai/consent": {
+      "get": {
+        "tags": [
+          "AI Consent"
+        ],
+        "summary": "AI利用同意状態取得",
+        "operationId": "getAiConsent",
+        "responses": {
+          "200": {
+            "description": "同意状態",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "consented": {
+                      "type": "boolean"
+                    },
+                    "consentedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "AI Consent"
+        ],
+        "summary": "AI利用同意を記録",
+        "operationId": "acceptAiConsent",
+        "responses": {
+          "200": {
+            "description": "記録成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "consented": {
+                      "type": "boolean"
+                    },
+                    "consentedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ai/chat": {
+      "post": {
+        "tags": [
+          "AI Agent"
+        ],
+        "summary": "AIチャット（SSEストリーミング）",
+        "operationId": "aiChat",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "message"
+                ],
+                "properties": {
+                  "message": {
+                    "type": "string",
+                    "maxLength": 10000
+                  },
+                  "conversationId": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "requireConfirmation": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "category": {
+                    "type": "string",
+                    "nullable": true,
+                    "enum": [
+                      "db",
+                      "screen",
+                      "script",
+                      "menu",
+                      "default"
+                    ]
+                  },
+                  "pageContext": {
+                    "type": "object",
+                    "nullable": true,
+                    "properties": {
+                      "pageType": {
+                        "type": "string"
+                      },
+                      "formId": {
+                        "type": "string"
+                      },
+                      "answerId": {
+                        "type": "string"
+                      },
+                      "rowId": {
+                        "type": "string"
+                      },
+                      "screenId": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "attachments": {
+                    "type": "array",
+                    "nullable": true,
+                    "maxItems": 5,
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "filename",
+                        "mimeType",
+                        "size",
+                        "content"
+                      ],
+                      "properties": {
+                        "filename": {
+                          "type": "string",
+                          "maxLength": 100
+                        },
+                        "mimeType": {
+                          "type": "string"
+                        },
+                        "size": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 5242880
+                        },
+                        "content": {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "text",
+                                "image",
+                                "document"
+                              ]
+                            },
+                            "text": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "source": {
+                              "type": "object",
+                              "nullable": true
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "model": {
+                    "type": "string",
+                    "nullable": true,
+                    "enum": [
+                      "claude-sonnet-4-20250514",
+                      "claude-opus-4-20250514",
+                      "claude-haiku-4-5-20251001"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "SSEストリーム（text/event-stream）"
+          },
+          "400": {
+            "description": "バリデーションエラー"
+          }
+        }
+      }
+    },
+    "/api/v1/ai/chat/{jobId}/stream": {
+      "get": {
+        "tags": [
+          "AI Agent"
+        ],
+        "summary": "SSE再接続",
+        "operationId": "reconnectAiStream",
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0
+            },
+            "description": "開始イベントインデックス"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SSEストリーム"
+          }
+        }
+      }
+    },
+    "/api/v1/ai/chat/{jobId}/status": {
+      "get": {
+        "tags": [
+          "AI Agent"
+        ],
+        "summary": "ジョブステータス確認",
+        "operationId": "getAiJobStatus",
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ステータス",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "running",
+                        "completed",
+                        "error"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ai/conversations": {
+      "get": {
+        "tags": [
+          "AI Agent"
+        ],
+        "summary": "会話一覧取得",
+        "operationId": "getAiConversations",
+        "parameters": [
+          {
+            "name": "context",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "カテゴリフィルタ"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "会話一覧"
+          }
+        }
+      }
+    },
+    "/api/v1/ai/conversations/{conversationId}/messages": {
+      "get": {
+        "tags": [
+          "AI Agent"
+        ],
+        "summary": "会話メッセージ取得",
+        "operationId": "getAiMessages",
+        "parameters": [
+          {
+            "name": "conversationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "メッセージ一覧"
+          },
+          "403": {
+            "description": "アクセス権限なし"
+          },
+          "404": {
+            "description": "会話が削除済み"
+          }
+        }
+      }
+    },
+    "/api/v1/ai/conversations/{conversationId}": {
+      "delete": {
+        "tags": [
+          "AI Agent"
+        ],
+        "summary": "会話削除",
+        "operationId": "deleteAiConversation",
+        "parameters": [
+          {
+            "name": "conversationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "削除成功"
+          }
+        }
+      }
+    },
+    "/api/v1/ai/chat/{conversationId}/confirm": {
+      "post": {
+        "tags": [
+          "AI Agent"
+        ],
+        "summary": "Write操作の承認/却下",
+        "operationId": "confirmAiAction",
+        "parameters": [
+          {
+            "name": "conversationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "confirmationId",
+                  "action"
+                ],
+                "properties": {
+                  "confirmationId": {
+                    "type": "string"
+                  },
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "approve",
+                      "reject"
+                    ]
+                  },
+                  "reason": {
+                    "type": "string",
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "確認処理成功"
+          },
+          "404": {
+            "description": "確認が既に解決済み"
+          }
+        }
+      }
+    },
+    "/api/v1/ai/upload": {
+      "post": {
+        "tags": [
+          "AI Agent"
+        ],
+        "summary": "ファイルアップロード（AI用）",
+        "operationId": "uploadAiFile",
+        "description": "ファイルをAI送信用形式に変換。サイズ上限5MB。",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "アップロード成功"
+          },
+          "400": {
+            "description": "ファイルサイズ超過"
+          }
+        }
+      }
+    },
+    "/api/v1/forms/{formId}/answers/{answerId}/actions/{actionId}": {
+      "post": {
+        "tags": [
+          "Actions"
+        ],
+        "summary": "カスタムアクション実行",
+        "operationId": "executeAction",
+        "parameters": [
+          {
+            "name": "formId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "データベースID"
+          },
+          {
+            "name": "answerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "レコードID"
+          },
+          {
+            "name": "actionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "アクションID"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "args": {
+                    "type": "object",
+                    "default": {}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "実行結果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "actionId": {
+                      "type": "string"
+                    },
+                    "executionId": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "record": {
+                      "type": "object",
+                      "nullable": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "error": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "executionTimeMs": {
+                      "type": "integer",
+                      "format": "int64"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "レコードまたはアクション不明"
+          },
+          "500": {
+            "description": "スクリプト実行エラー"
+          }
+        }
+      }
+    },
+    "/api/v1/menu/personal": {
+      "get": {
+        "tags": [
+          "Personal Menu"
+        ],
+        "summary": "個人メニュー設定取得",
+        "operationId": "getPersonalMenu",
+        "responses": {
+          "200": {
+            "description": "個人メニュー設定",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "categories": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "order": {
+                            "type": "integer"
+                          },
+                          "collapsed": {
+                            "type": "boolean"
+                          },
+                          "itemIds": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "hiddenItemIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "個人設定なし"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Personal Menu"
+        ],
+        "summary": "個人メニュー設定保存",
+        "operationId": "savePersonalMenu",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "categories"
+                ],
+                "properties": {
+                  "categories": {
+                    "type": "array",
+                    "maxItems": 20,
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "label",
+                        "order"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "maxLength": 50
+                        },
+                        "label": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 30
+                        },
+                        "order": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "collapsed": {
+                          "type": "boolean",
+                          "default": false
+                        },
+                        "itemIds": {
+                          "type": "array",
+                          "maxItems": 50,
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "hiddenItemIds": {
+                    "type": "array",
+                    "maxItems": 100,
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "保存成功"
+          },
+          "400": {
+            "description": "バリデーションエラー"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Personal Menu"
+        ],
+        "summary": "個人メニュー設定リセット",
+        "operationId": "deletePersonalMenu",
+        "responses": {
+          "204": {
+            "description": "リセット成功"
           }
         }
       }
