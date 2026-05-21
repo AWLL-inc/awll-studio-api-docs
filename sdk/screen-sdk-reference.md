@@ -1284,6 +1284,8 @@ function useNodeMutation(): UseNodeMutationResult
 |-----------|-----|------|
 | `createNode` | `(answerId, options) => Promise<NodeItem>` | ノード行追加 |
 | `createResult` | `{ isLoading, error }` | 作成操作の状態 |
+| `bulkCreateNodes` | `(answerId, options) => Promise<BulkCreateNodesResponse>` | ノード一括作成（children ネスト対応） |
+| `bulkCreateResult` | `{ isLoading, error }` | 一括作成操作の状態 |
 | `updateNode` | `(answerId, rowId, options) => Promise<NodeItem>` | ノード行更新 |
 | `updateResult` | `{ isLoading, error }` | 更新操作の状態 |
 | `deleteNode` | `(answerId, rowId, formId?) => Promise<void>` | ノード行削除 |
@@ -1327,6 +1329,72 @@ await updateNode(answerId, rowId, {
 await deleteNode(answerId, rowId);
 ```
 
+### bulkCreateNodes オプション
+
+| パラメータ | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| `nodes` | `BulkCreateNodeItem[]` | Yes | 作成するノードのリスト |
+| `formId` | `string` | No | データベースID（**指定推奨**） |
+
+#### BulkCreateNodeItem
+
+| フィールド | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| `parentRowId` | `string` | Yes | 親ノードのrowId |
+| `fieldCode` | `string` | Yes | ARRAYフィールドのコード |
+| `data` | `Record<string, unknown>` | Yes | ノードデータ |
+| `children` | `BulkCreateChildNode[]` | No | 子ノードのリスト（`parentRowId` は自動設定） |
+
+#### BulkCreateChildNode
+
+| フィールド | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| `fieldCode` | `string` | Yes | ARRAYフィールドのコード |
+| `data` | `Record<string, unknown>` | Yes | ノードデータ |
+| `children` | `BulkCreateChildNode[]` | No | さらにネストする子ノード（最大深度3） |
+
+#### BulkCreateNodesResponse
+
+| フィールド | 型 | 説明 |
+|-----------|-----|------|
+| `totalRequested` | `number` | リクエスト合計件数（children 含む） |
+| `succeeded` | `number` | 成功件数 |
+| `failed` | `number` | 失敗件数 |
+| `nodes` | `BulkCreateNodeResult[]` | トップレベルノードの結果（children 含む） |
+
+### bulkCreateNodes 使用例
+
+```tsx
+const { bulkCreateNodes } = useNodeMutation();
+
+// 商談テンプレート投入（5フェーズ × Todo + 完了基準 = 30ノード）
+const result = await bulkCreateNodes(answerId, {
+  nodes: [
+    {
+      parentRowId: rootNodeRowId,  // ルートノード（depth=0）の rowId
+      fieldCode: 'phase_progress',
+      data: { phase: '事前準備', purpose: '仮説構築・設計' },
+      children: [
+        { fieldCode: 'todos', data: { todo_text: '業界/企業研究', done: false } },
+        { fieldCode: 'todos', data: { todo_text: '仮説課題リストアップ', done: false } },
+        { fieldCode: 'criteria_check', data: { criteria_text: '仮説課題2個リストアップ', met: false } },
+      ],
+    },
+    // ... 他のフェーズ
+  ],
+  formId: 'my-form-id',  // 推奨
+});
+
+console.log(`${result.succeeded}/${result.totalRequested} 成功`);
+```
+
+### bulkCreateNodes 制約
+
+- **合計ノード数**: children 含む合計で **最大500件/リクエスト**
+- **ネスト深度**: 最大3（例: deals → phase_progress → todos）
+- **部分成功**: 各トップレベルノードは独立して処理。子は親の成功に依存
+- **parentRowId**: ルートノード（depth=0）の `rowId` を指定（`answerId` ではない）
+
 ### 注意事項
 
 1. **シャローマージ**: `updateNode` は `data` に含まれるフィールドのみ上書きし、未送信フィールドは既存値を保持します。`{ "field": null }` で明示的にnullクリアも可能です。
@@ -1347,6 +1415,7 @@ await deleteNode(answerId, rowId);
 | レコード部分更新 | **PATCH** `/api/v1/forms/{formId}/answers/{id}` | 差分更新（`operations` + `If-Match` 必須） |
 | レコード削除 | **DELETE** `/api/v1/forms/{formId}/answers/{id}` | レコード削除 |
 | ノード作成 | **POST** `/api/answers/{id}/nodes` | サブテーブル行追加 |
+| ノード一括作成 | **POST** `/api/answers/{id}/nodes/bulk` | サブテーブル行一括作成（children ネスト対応、最大500件） |
 | ノード更新 | **PUT** `/api/answers/{id}/nodes/{rowId}` | サブテーブル行更新 |
 | ノード削除 | **DELETE** `/api/answers/{id}/nodes/{rowId}` | サブテーブル行削除 |
 
@@ -2271,6 +2340,7 @@ await updateMutation.mutate({
 |---|---|---|---|
 | ルートフィールドの更新 | `useMutation('update')` + 全フィールドスプレッド | `PATCH /answers/{id}`（推奨） | ✅ |
 | サブテーブル行の追加 | `useNodeMutation.createNode()` | `POST /answers/{id}/nodes` | ✅ |
+| サブテーブル行の一括作成 | `useNodeMutation.bulkCreateNodes()` | `POST /answers/{id}/nodes/bulk` | ✅ 部分成功 |
 | サブテーブル行の更新 | `useNodeMutation.updateNode()` | `PUT /answers/{id}/nodes/{rowId}` | ✅ シャローマージ |
 | サブテーブル行の削除 | `useNodeMutation.deleteNode()` | `DELETE /answers/{id}/nodes/{rowId}` | ⚠️ CASCADE |
 | サブテーブル全行置換 | — | `PUT /answers/{id}/nodes`（replaceSubtableRows） | ✅ |

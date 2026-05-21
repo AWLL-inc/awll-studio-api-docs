@@ -71,6 +71,7 @@
 | GET | `/api/answers/{answerId}/nodes/{rowId}` | ノードを取得（祖先情報含む） |
 | GET | `/api/answers/{answerId}/nodes/{parentRowId}/children` | 直接の子ノード取得（ページネーション付き） |
 | POST | `/api/answers/{answerId}/nodes` | **子ノードを作成**（ルートノード作成不可） |
+| POST | `/api/answers/{answerId}/nodes/bulk` | **ノード一括作成**（children ネスト対応、最大500件） |
 | PUT | `/api/answers/{answerId}/nodes/{rowId}` | ノードを更新 |
 | DELETE | `/api/answers/{answerId}/nodes/{rowId}` | ノードを削除（子孫も削除） |
 | POST | `/api/answers/{answerId}/nodes/{rowId}/copy` | ノードを複製 |
@@ -303,6 +304,116 @@ curl -s -X POST \
 
 > **✅ answerData自動同期（Issue #1325）**: 作成後、`FormAnswer.answerData` は自動同期されます。
 > `rebuild-index` の手動呼び出しは通常不要です。
+
+---
+
+## POST /api/answers/{answerId}/nodes/bulk
+
+**ノードを一括作成します。** `children` を指定することで、親→子→孫を1リクエストで作成可能です。
+
+### ユースケース
+
+- 商談テンプレート投入（5フェーズ × Todo + 完了基準 = 30ノードを1リクエストで作成）
+- プロジェクトテンプレート（マイルストン + タスク + サブタスクの一括作成）
+- データ移行（既存システムからの階層データのバルクインポート）
+
+### リクエスト
+
+```json
+{
+  "nodes": [
+    {
+      "parentRowId": "01KKD2ZB8Q...",
+      "fieldCode": "phase_progress",
+      "data": { "phase": "事前準備", "purpose": "仮説構築・設計" },
+      "children": [
+        {
+          "fieldCode": "todos",
+          "data": { "todo_text": "業界/企業研究", "done": false }
+        },
+        {
+          "fieldCode": "criteria_check",
+          "data": { "criteria_text": "仮説課題2個リストアップ", "met": false }
+        }
+      ]
+    }
+  ]
+}
+```
+
+| フィールド | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| nodes | array | **Yes** | 作成するノードのリスト |
+| nodes[].parentRowId | string | **Yes** | 親ノードのrowId |
+| nodes[].fieldCode | string | **Yes** | ARRAYフィールドのコード |
+| nodes[].data | object | **Yes** | ノードデータ |
+| nodes[].children | array | No | 子ノードのリスト（`parentRowId` は自動設定、最大深度3） |
+
+### クエリパラメータ
+
+| パラメータ | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| formId | string | No（推奨） | データベースID。指定するとパフォーマンスが向上します |
+
+### レスポンス (200)
+
+```json
+{
+  "totalRequested": 30,
+  "succeeded": 30,
+  "failed": 0,
+  "nodes": [
+    {
+      "index": 0,
+      "status": "SUCCESS",
+      "rowId": "01XYZ...",
+      "parentRowId": "01KKD2ZB8Q...",
+      "fieldCode": "phase_progress",
+      "children": [
+        { "index": 0, "status": "SUCCESS", "rowId": "01DEF...", "fieldCode": "todos" },
+        { "index": 1, "status": "SUCCESS", "rowId": "01GHI...", "fieldCode": "criteria_check" }
+      ]
+    }
+  ]
+}
+```
+
+### 制約
+
+- **合計ノード数**: `children` 含む合計で **最大500件/リクエスト**
+- **ネスト深度**: 最大3（例: deals → phase_progress → todos）
+- **部分成功**: 各トップレベルノードは独立して処理。1件失敗しても残りは続行。ただし `children` は親が成功した場合のみ作成
+- **parentRowId**: ルートノード（depth=0）の `rowId` を指定（`answerId` ではない）
+
+### エラー
+
+| Status | 原因 |
+|--------|------|
+| 400 | nodes が空、500件超過、ネスト深度超過 |
+| 401 | 認証エラー |
+| 403 | 権限不足 |
+
+### curl例
+
+```bash
+curl -s -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Tenant-Code: $TENANT" \
+  -H "Content-Type: application/json; charset=utf-8" \
+  "$API/api/answers/$ANSWER_ID/nodes/bulk?formId=$FORM_ID" \
+  -d '{
+    "nodes": [
+      {
+        "parentRowId": "'$ROOT_ROW_ID'",
+        "fieldCode": "tasks",
+        "data": { "task_name": "タスク1" },
+        "children": [
+          { "fieldCode": "sub_tasks", "data": { "name": "サブタスク1" } }
+        ]
+      }
+    ]
+  }' | jq .
+```
 
 ---
 
@@ -769,4 +880,4 @@ X-Tenant-Code: <tenant_code>
 
 ---
 
-**更新日**: 2026-05-18
+**更新日**: 2026-05-20
