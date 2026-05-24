@@ -104,7 +104,8 @@
   "screenName": "顧客一覧画面",
   "screenCode": "customer_list",
   "sourceCode": "export default function CustomerList() { ... }",
-  "folderPath": "/顧客管理"
+  "folderPath": "/顧客管理",
+  "description": "顧客一覧を表示する画面。検索・フィルタ機能付き。"
 }
 ```
 
@@ -114,6 +115,7 @@
 | screenCode | string | Yes | 1-50文字、`^[a-z0-9_]+$` パターン |
 | sourceCode | string | Yes | 0-1,000,000文字 |
 | folderPath | string | No | 最大255文字、デフォルト `/`、`..` 禁止 |
+| description | string | No | 最大10,000文字。画面仕様メモ |
 
 ---
 
@@ -128,7 +130,8 @@
   "screenName": "更新後の画面名",
   "sourceCode": "export default function Updated() { ... }",
   "compiledCode": "...",
-  "dependencies": ["react", "mui", "chart.js"]
+  "dependencies": ["react", "mui", "chart.js"],
+  "description": "更新後の画面仕様メモ"
 }
 ```
 
@@ -138,6 +141,9 @@
 | sourceCode | string | No | ソースコード |
 | compiledCode | string | No | コンパイル済みコード |
 | dependencies | string[] | No | 依存関係リスト |
+| description | string | No | 画面仕様メモ（最大10,000文字）。nullで既存値保持、空文字でクリア |
+
+> **注意**: 少なくとも1フィールド（screenName, sourceCode, compiledCode, dependencies, description）の指定が必要です。
 
 ---
 
@@ -268,6 +274,7 @@
   isMultiFile: boolean;           // マルチファイルモード
   entryPoint: string;             // エントリーポイント（デフォルト: "App.tsx"）
   folderPath: string;             // フォルダパス（デフォルト: "/"）
+  description: string | null;     // 画面仕様メモ（最大10,000文字）
 }
 ```
 
@@ -674,4 +681,4 @@
 
 ---
 
-**更新日**: 2026-04-15
+**更新日**: 2026-05-25

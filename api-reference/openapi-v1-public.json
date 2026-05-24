@@ -7618,6 +7618,11 @@
             "items": {
               "type": "string"
             }
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 10000,
+            "description": "画面仕様メモ。nullで既存値保持、空文字でクリア"
           }
         }
       },
@@ -7677,6 +7682,14 @@
           },
           "publishedVersion": {
             "type": "string"
+          },
+          "folderPath": {
+            "type": "string",
+            "description": "フォルダパス（デフォルト: /）"
+          },
+          "description": {
+            "type": "string",
+            "description": "画面仕様メモ（最大10,000文字）"
           }
         },
         "required": [
@@ -8442,6 +8455,16 @@
             "type": "string",
             "maxLength": 1000000,
             "minLength": 0
+          },
+          "folderPath": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "フォルダパス（デフォルト: /）"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 10000,
+            "description": "画面仕様メモ"
           }
         },
         "required": [
