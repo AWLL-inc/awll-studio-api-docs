@@ -2,7 +2,7 @@
 
 ## 概要
 
-S3 presigned URL 方式によるファイルのアップロード・ダウンロード・削除 API です。
+署名付きURL 方式によるファイルのアップロード・ダウンロード・削除 API です。
 レコードの FILE 型フィールドへのファイル添付に使用します。
 
 **ベースパス**: `/api/v1/files`
@@ -23,7 +23,7 @@ S3 presigned URL 方式によるファイルのアップロード・ダウンロ
 
 ## POST /api/v1/files/presign/upload
 
-S3 へのファイルアップロード用 presigned PUT URL を発行します。
+ストレージへのファイルアップロード用 presigned PUT URL を発行します。
 
 ### アップロードフロー（3ステップ）
 
@@ -66,7 +66,7 @@ curl -X POST "${BASE_URL}/api/v1/files/presign/upload" \
 ```json
 {
   "key": "tenants/DEMO/forms/01KP4MD.../answers/01ABC.../fields/receipts/01J5K.../invoice-2026-05.pdf",
-  "uploadUrl": "https://s3.ap-northeast-1.amazonaws.com/...",
+  "uploadUrl": "https://storage.example.com/...",
   "headers": {
     "x-amz-server-side-encryption": "aws:kms",
     "x-amz-server-side-encryption-aws-kms-key-id": "..."
@@ -77,12 +77,12 @@ curl -X POST "${BASE_URL}/api/v1/files/presign/upload" \
 
 | フィールド | 型 | 説明 |
 |-----------|-----|------|
-| key | string | S3 オブジェクトキー。レコード保存時にこの値を使用 |
+| key | string | オブジェクトキー。レコード保存時にこの値を使用 |
 | uploadUrl | string | presigned PUT URL（**5分間有効**） |
-| headers | object / null | S3 PUT 時に付与すべきヘッダー（KMS暗号化用等） |
+| headers | object / null | ストレージ PUT 時に付与すべきヘッダー（KMS暗号化用等） |
 | expiresAt | string | URL有効期限（ISO 8601） |
 
-### S3 へのアップロード
+### ストレージへのアップロード
 
 presigned URL に対してファイルバイナリを PUT します。
 
@@ -94,7 +94,7 @@ curl -X PUT "${UPLOAD_URL}" \
   --data-binary @invoice-2026-05.pdf
 ```
 
-> **重要**: `headers` フィールドが返却された場合、それらのヘッダーを S3 PUT リクエストに必ず含めてください。含めないと 403 エラーになります。
+> **重要**: `headers` フィールドが返却された場合、それらのヘッダーを ストレージ PUT リクエストに必ず含めてください。含めないと 403 エラーになります。
 
 ### レコードへのメタデータ保存
 
@@ -172,7 +172,7 @@ curl -X PATCH "${BASE_URL}/api/v1/forms/${FORM_ID}/answers/${ANSWER_ID}" \
 
 | フィールド | 型 | 説明 |
 |-----------|-----|------|
-| key | string | S3 オブジェクトキー（presign/upload レスポンスの `key`） |
+| key | string | オブジェクトキー（presign/upload レスポンスの `key`） |
 | fileName | string | ファイル名 |
 | mimeType | string | MIMEタイプ |
 | size | number | ファイルサイズ（バイト） |
@@ -182,7 +182,7 @@ curl -X PATCH "${BASE_URL}/api/v1/forms/${FORM_ID}/answers/${ANSWER_ID}" \
 
 - **MIME タイプブロックリスト**: `text/html`, `application/javascript` 等の XSS 危険なタイプは拒否（400 エラー）
 - **ファイルサイズ上限**: システム上限 100MB。フィールド定義の `maxSizeMB` で個別に制限可能
-- **テナント分離**: S3 キーにテナントコードが含まれ、ダウンロード・削除時にテナント境界を検証
+- **テナント分離**: オブジェクトキーにテナントコードが含まれ、ダウンロード・削除時にテナント境界を検証
 - **ファイル名サニタイズ**: パストラバーサル・Content-Disposition インジェクション防止
 
 ### エラーレスポンス
@@ -197,7 +197,7 @@ curl -X PATCH "${BASE_URL}/api/v1/forms/${FORM_ID}/answers/${ANSWER_ID}" \
 
 ## GET /api/v1/files/presign/download
 
-S3 からのファイルダウンロード用 presigned GET URL を発行します。
+ストレージからのファイルダウンロード用 presigned GET URL を発行します。
 
 ### リクエスト
 
@@ -211,14 +211,14 @@ curl -G "${BASE_URL}/api/v1/files/presign/download" \
 
 | パラメータ | 型 | 必須 | 説明 |
 |-----------|-----|------|------|
-| key | string (query) | Yes | S3 オブジェクトキー |
+| key | string (query) | Yes | オブジェクトキー |
 | download | boolean (query) | No | `true`: `Content-Disposition: attachment` 設定（デフォルト: `false`） |
 
 ### レスポンス (200)
 
 ```json
 {
-  "url": "https://s3.ap-northeast-1.amazonaws.com/...?X-Amz-Signature=..."
+  "url": "https://storage.example.com/...?X-Amz-Signature=..."
 }
 ```
 
@@ -237,7 +237,7 @@ curl -G "${BASE_URL}/api/v1/files/presign/download" \
 
 ## DELETE /api/v1/files
 
-S3 上のファイルを削除します。
+ストレージ上のファイルを削除します。
 
 > **注意**: ファイル削除後は、レコード側でも FILE フィールドの値を `null`（または配列から該当要素を除去）に更新してください。
 
@@ -251,7 +251,7 @@ curl -X DELETE "${BASE_URL}/api/v1/files?key=tenants/DEMO/forms/01KP4MD.../invoi
 
 | パラメータ | 型 | 必須 | 説明 |
 |-----------|-----|------|------|
-| key | string (query) | Yes | S3 オブジェクトキー |
+| key | string (query) | Yes | オブジェクトキー |
 
 ### レスポンス
 
@@ -266,9 +266,9 @@ curl -X DELETE "${BASE_URL}/api/v1/files?key=tenants/DEMO/forms/01KP4MD.../invoi
 
 ---
 
-## S3 キー設計
+## オブジェクトキー設計
 
-ファイルは以下のキー形式で S3 に保存されます:
+ファイルは以下のキー形式で ストレージに保存されます:
 
 ```
 tenants/{tenantCode}/forms/{formId}/answers/{answerId}/fields/{fieldId}/{uuid}/{fileName}
@@ -321,9 +321,9 @@ PRESIGN=$(curl -s -X POST "${BASE_URL}/api/v1/files/presign/upload" \
   }")
 
 UPLOAD_URL=$(echo "$PRESIGN" | jq -r '.uploadUrl')
-S3_KEY=$(echo "$PRESIGN" | jq -r '.key')
+STORAGE_KEY=$(echo "$PRESIGN" | jq -r '.key')
 
-# 4. S3 にアップロード（headers も付与）
+# 4. ストレージにアップロード（headers も付与）
 curl -X PUT "${UPLOAD_URL}" \
   -H "Content-Type: application/pdf" \
   $(echo "$PRESIGN" | jq -r '.headers // {} | to_entries[] | "-H \(.key): \(.value)"') \
@@ -339,7 +339,7 @@ curl -X PATCH "${BASE_URL}/api/v1/forms/${FORM_ID}/answers/${ANSWER_ID}" \
       \"op\": \"replace\",
       \"path\": \"/receipts\",
       \"value\": {
-        \"key\": \"${S3_KEY}\",
+        \"key\": \"${STORAGE_KEY}\",
         \"fileName\": \"invoice.pdf\",
         \"mimeType\": \"application/pdf\",
         \"size\": $(stat -c%s invoice.pdf),

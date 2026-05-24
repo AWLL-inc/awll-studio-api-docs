@@ -87,7 +87,7 @@
     },
     {
       "name": "Files",
-      "description": "ファイル操作API - S3 presigned URLによるアップロード・ダウンロード・削除"
+      "description": "ファイル操作API - 署名付きURLによるアップロード・ダウンロード・削除"
     },
     {
       "name": "Mail",
@@ -6239,7 +6239,7 @@
         "summary": "トークン取得",
         "operationId": "getToken",
         "security": [],
-        "description": "メールアドレスとパスワードでCognito認証し、IDトークン・アクセストークン・リフレッシュトークンを取得します。",
+        "description": "メールアドレスとパスワードで認証サービスで認証し、IDトークン・アクセストークン・リフレッシュトークンを取得します。",
         "requestBody": {
           "required": true,
           "content": {
@@ -6416,7 +6416,7 @@
                   "properties": {
                     "key": {
                       "type": "string",
-                      "description": "S3オブジェクトキー"
+                      "description": "オブジェクトキー"
                     },
                     "uploadUrl": {
                       "type": "string",
@@ -6425,7 +6425,7 @@
                     "headers": {
                       "type": "object",
                       "nullable": true,
-                      "description": "S3 PUT時に付与すべきヘッダー",
+                      "description": "ストレージ PUT時に付与すべきヘッダー",
                       "additionalProperties": {
                         "type": "string"
                       }
@@ -6467,7 +6467,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "S3オブジェクトキー"
+            "description": "オブジェクトキー"
           },
           {
             "name": "download",
@@ -6521,7 +6521,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "S3オブジェクトキー"
+            "description": "オブジェクトキー"
           }
         ],
         "responses": {
@@ -6739,7 +6739,7 @@
                     },
                     "key": {
                       "type": "string",
-                      "description": "S3キー"
+                      "description": "オブジェクトキー"
                     },
                     "expiresAt": {
                       "type": "string",
