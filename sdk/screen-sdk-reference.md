@@ -390,7 +390,7 @@ const filesValue = record.values.receipts; // FileMetadata[] | null
 
 `FileMetadata` の構造は [useFileUpload](#usefileupload) セクションを参照してください。
 
-> ⚠️ **重要**: `FileMetadata.key` はオブジェクトキーであり、**URLではありません**。画像表示やダウンロードには `useFileUpload().downloadFile(key)` で署名付きURLを取得してください。
+> ⚠️ **重要**: `FileMetadata.key` はストレージオブジェクトキーであり、**URLではありません**。画像表示やダウンロードには `useFileUpload().downloadFile(key)` で署名付きURLを取得してください。
 
 ```tsx
 // ✅ 正しい: downloadFileで署名付きURLを取得して表示
@@ -1176,7 +1176,7 @@ const { data } = useBulkNodes({
 |------|------|
 | answerIds最大件数 | 500件/リクエスト |
 | 部分エラー | 1件の失敗が全体をブロックしない（errors に記録） |
-| バックエンド実行 | 現時点では逐次DynamoDBクエリ（将来的に並列化予定） |
+| バックエンド実行 | 現時点では逐次データベースクエリ（将来的に並列化予定） |
 
 ---
 
@@ -1896,7 +1896,7 @@ const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     answerId: 'ANSWER_ID',     // オプション: レコードID
   });
 
-  console.log(metadata.key);        // オブジェクトキー
+  console.log(metadata.key);        // ストレージオブジェクトキー
   console.log(metadata.fileName);   // ファイル名
   console.log(metadata.mimeType);   // MIME タイプ
   console.log(metadata.size);       // ファイルサイズ（バイト）
@@ -1917,7 +1917,7 @@ const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
 
 ```typescript
 interface FileMetadata {
-  key: string;           // オブジェクトキー（ダウンロード・削除時に使用）
+  key: string;           // ストレージオブジェクトキー（ダウンロード・削除時に使用）
   fileName: string;      // ファイル名
   mimeType: string;      // MIME タイプ
   size: number;          // ファイルサイズ（バイト）
@@ -1948,10 +1948,14 @@ const { url } = await downloadFile(fileKey, false);  // forceDownload=false
 
 | パラメータ | 型 | 必須 | 説明 |
 |-----------|-----|------|------|
-| `key` | `string` | Yes | オブジェクトキー（`uploadFile` の戻り値 `.key`） |
-| `forceDownload` | `boolean` | No | `true`（デフォルト）: 新規タブで開く + `Content-Disposition: attachment`。`false`: URLのみ返却（プレビュー用） |
+| `key` | `string` | Yes | ストレージオブジェクトキー（`uploadFile` の戻り値 `.key`） |
+| `forceDownload` | `boolean` | No | `true`（デフォルト）: 新規タブで開く + `Content-Disposition: attachment`。`false`: URLのみ返却 + `Content-Disposition: inline`（プレビュー用） |
 
 **戻り値**: `Promise<{ url: string }>` — 署名付きURL（15分有効）
+
+> **Content-Disposition ヘッダー**（Issue #2061）:
+> - `forceDownload=true`: `Content-Disposition: attachment; filename="..."` — ブラウザがダウンロードダイアログを表示
+> - `forceDownload=false`: `Content-Disposition: inline` — ブラウザがファイルをインライン表示（PDF、画像等）
 
 ### deleteFile(key)
 
@@ -1973,7 +1977,7 @@ const handleDelete = async () => {
 
 | パラメータ | 型 | 必須 | 説明 |
 |-----------|-----|------|------|
-| `key` | `string` | Yes | オブジェクトキー |
+| `key` | `string` | Yes | ストレージオブジェクトキー |
 
 **戻り値**: `Promise<{ success: boolean }>`
 
@@ -2041,7 +2045,7 @@ export default function FileUploadDemo() {
 1. **Base64変換**: iframe内でFileオブジェクトを直接postMessageで送信できないため、内部でBase64に変換しています。100MBを超えるファイルはメモリ制約でエラーになる可能性があります。
 2. **ファイル名サニタイズ**: バックエンド側でパストラバーサル・Content-Dispositionインジェクション防止のサニタイズが自動適用されます。
 3. **暗号化**: アップロードされたファイルはAWS KMSで自動暗号化されます。
-4. **テナント分離**: オブジェクトキーの `tenants/{tenantCode}/` プレフィックスにより、テナント間のファイルアクセスは自動的にブロックされます。
+4. **テナント分離**: ストレージキーの `tenants/{tenantCode}/` プレフィックスにより、テナント間のファイルアクセスは自動的にブロックされます。
 5. **権限**: アップロードには `FORM_ANSWER:WRITE`、ダウンロードには `FORM_ANSWER:READ` 権限が必要です。
 
 ### 画像のインライン表示（img タグ）
@@ -2105,45 +2109,191 @@ useEffect(() => {
 
 > **注意**: 署名付きURLは**15分で有効期限が切れます**。長時間表示する画面では、タイマーで再取得するか、ユーザー操作時に都度取得してください。
 
-#### PDFのインラインプレビュー
+#### PDFのインラインプレビュー（PDF.js）
 
-FILE型フィールドのPDFを画面内で `<iframe>` として埋め込み表示できます。
+FILE型フィールドのPDFを画面内でインラインプレビューするには、**PDF.js** を使用してcanvasにレンダリングします。
 
-> ✅ **CSP対応済み**: iframe内のCSPは `frame-src 'self' blob: https://*.storage.example.com` を許可しているため、署名付きURLのPDFを `<iframe>` で直接表示できます（PR #1672 で追加）。
+> ⚠️ **`<iframe>` / `<embed>` / `<object>` は使用不可**: 画面コードはセキュリティのためサンドボックスiframe内で実行されます。Chrome はサンドボックスiframe内でのPDFプラグイン（ブラウザ内蔵PDFビューア）の動作をブロックするため、`<iframe src={pdfUrl}>` 方式ではPDFを表示できません。PDF.js を使用してJavaScriptでcanvasに描画する必要があります。
+
+##### 基本的な実装手順
+
+1. **PDF.jsをCDNからインポート**（`cdn.jsdelivr.net` はCSP許可済み）
+2. **`downloadFile(key, false)`** で署名付きURLを取得
+3. **`fetch()`** でPDFバイナリを取得し `ArrayBuffer` に変換
+4. **PDF.js** でページごとにcanvasに描画
+
+##### 完全サンプル: PDFプレビュー（ズーム対応）
 
 ```tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRecord, useFileUpload, useExecutionContext } from '@awll/sdk';
 
-export default function PdfPreview() {
+// PDF.js CDN（CSP許可済み）
+const PDFJS_CDN = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.min.mjs';
+const PDFJS_WORKER_CDN = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.worker.min.mjs';
+
+// PDF.js を一度だけロード
+let pdfjsPromise = null;
+function loadPdfJs() {
+  if (!pdfjsPromise) {
+    pdfjsPromise = import(PDFJS_CDN).then(mod => {
+      mod.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_CDN;
+      return mod;
+    });
+  }
+  return pdfjsPromise;
+}
+
+// PDF描画コンポーネント（ズーム対応）
+function PdfViewer({ data }) {
+  const containerRef = useRef(null);
+  const pdfRef = useRef(null);
+  const [numPages, setNumPages] = useState(0);
+  const [zoom, setZoom] = useState(100); // %
+  const [rendering, setRendering] = useState(false);
+
+  // PDFロード
+  useEffect(() => {
+    if (!data) return;
+    let cancelled = false;
+    (async () => {
+      const pdfjsLib = await loadPdfJs();
+      const pdf = await pdfjsLib.getDocument({ data }).promise;
+      if (cancelled) return;
+      pdfRef.current = pdf;
+      setNumPages(pdf.numPages);
+    })();
+    return () => { cancelled = true; };
+  }, [data]);
+
+  // ページ描画（zoom変更時にも再描画）
+  useEffect(() => {
+    const pdf = pdfRef.current;
+    if (!pdf || numPages === 0) return;
+    let cancelled = false;
+    setRendering(true);
+    const scale = zoom / 100;
+    (async () => {
+      const container = containerRef.current;
+      if (!container) return;
+      container.innerHTML = '';
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        if (cancelled) return;
+        const viewport = page.getViewport({ scale });
+        const canvas = document.createElement('canvas');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        // 重要: max-width: none でグローバルCSSの max-width: 100% を上書き
+        canvas.style.maxWidth = 'none';
+        canvas.style.display = 'block';
+        canvas.style.marginBottom = '4px';
+        container.appendChild(canvas);
+        await page.render({
+          canvasContext: canvas.getContext('2d'), viewport,
+        }).promise;
+      }
+      if (!cancelled) setRendering(false);
+    })();
+    return () => { cancelled = true; };
+  }, [numPages, zoom]);
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 8 }}>
+        <button onClick={() => setZoom(z => Math.max(z - 25, 50))}>−</button>
+        <span>{zoom}%</span>
+        <button onClick={() => setZoom(z => Math.min(z + 25, 300))}>＋</button>
+        <button onClick={() => setZoom(100)}>100%</button>
+        <span style={{ marginLeft: 'auto', fontSize: 12, color: '#888' }}>
+          {rendering ? '描画中...' : `${numPages}ページ`}
+        </span>
+      </div>
+      <div ref={containerRef} style={{ overflow: 'auto', padding: 8 }} />
+    </div>
+  );
+}
+
+// メイン画面: レコードのPDFフィールドをプレビュー
+export default function InvoicePreview() {
   const { params } = useExecutionContext();
   const { data: record } = useRecord(params.formId, params.answerId);
   const { downloadFile } = useFileUpload();
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [pdfData, setPdfData] = useState(null);
 
   useEffect(() => {
-    const file = record?.values?.document;
+    const file = record?.values?.document; // FILE型フィールド
     if (file?.key && file.mimeType === 'application/pdf') {
-      downloadFile(file.key, false).then(({ url }) => setPdfUrl(url));
+      (async () => {
+        const { url } = await downloadFile(file.key, false);
+        const resp = await fetch(url);
+        const buf = await resp.arrayBuffer();
+        setPdfData(new Uint8Array(buf));
+      })();
     }
   }, [record]);
 
-  return pdfUrl ? (
-    <iframe
-      src={pdfUrl}
-      title="PDFプレビュー"
-      style={{ width: '100%', height: 600, border: 'none' }}
-    />
+  return pdfData ? (
+    <PdfViewer data={pdfData} />
   ) : (
     <p>PDFなし</p>
   );
 }
 ```
 
-> **注意**:
-> - ブラウザ内蔵のPDFビューアで表示されます（Chrome, Firefox, Edge, Safari対応）
-> - 高度なPDF操作（検索、注釈等）が必要な場合は PDF.js の導入を検討してください
-> - `<object>` / `<embed>` タグも `object-src` で許可済みですが、`<iframe>` が最も互換性が高い方法です
+##### 実装上の注意
+
+| 項目 | 説明 |
+|------|------|
+| **PDF.jsバージョン** | `pdfjs-dist@4.4.168` を推奨。CDN URLのバージョンを固定すること |
+| **Worker** | `GlobalWorkerOptions.workerSrc` を設定。CSPに `worker-src blob: https://cdn.jsdelivr.net` が必要 |
+| **canvas max-width** | グローバルCSSで `canvas { max-width: 100% }` が設定されているため、ズーム時は `canvas.style.maxWidth = 'none'` で上書きが必要 |
+| **署名付きURL有効期限** | 15分。長時間表示する場合はタイマーで再取得を検討 |
+| **メモリ** | 大きなPDF（100ページ以上）はメモリ消費に注意。ページ単位の遅延描画を検討 |
+| **`<iframe>` 不可の理由** | 画面コードはサンドボックスiframe内で実行。Chromeはサンドボックス内のPDFプラグインをブロック（`ERR_BLOCKED_BY_CLIENT`） |
+
+##### 簡易版（ズームなし）
+
+ズーム不要の場合はシンプルに記述できます:
+
+```tsx
+import { useFileUpload } from '@awll/sdk';
+
+function SimplePdfViewer({ fileKey }) {
+  const { downloadFile } = useFileUpload();
+  const containerRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (!fileKey) return;
+    let cancelled = false;
+    (async () => {
+      const pdfjsLib = await import('https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.min.mjs');
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.worker.min.mjs';
+      const { url } = await downloadFile(fileKey, false);
+      const resp = await fetch(url);
+      const data = new Uint8Array(await resp.arrayBuffer());
+      const pdf = await pdfjsLib.getDocument({ data }).promise;
+      const container = containerRef.current;
+      if (!container || cancelled) return;
+      container.innerHTML = '';
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const viewport = page.getViewport({ scale: 1.5 });
+        const canvas = document.createElement('canvas');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        canvas.style.maxWidth = 'none';
+        canvas.style.display = 'block';
+        container.appendChild(canvas);
+        await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [fileKey]);
+
+  return <div ref={containerRef} />;
+}
+```
 
 ---
 
