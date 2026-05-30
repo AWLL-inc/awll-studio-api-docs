@@ -372,3 +372,67 @@ Body: ファイルのバイナリデータ
 
 **追加日**: 2026-04-21（PR #1574 — AI Generate）
 **更新日**: 2026-04-30（PR #1793 — AIConsent / AIGateway / セキュリティ）
+
+---
+
+## AI DB作成チャット会話ログ API
+
+DB作成チャットの会話・メッセージをデータストアに永続化する API です。
+
+**ベースパス**: `/api/v1/ai/db-chat`  
+**権限**: USER / ADMIN / DEVELOPER / VIEWER（SUPER_ADMIN は対象外）
+
+### エンドポイント一覧
+
+| Method | Path | 説明 |
+|--------|------|------|
+| GET | `/api/v1/ai/db-chat/conversations` | 自分の会話一覧を取得 |
+| POST | `/api/v1/ai/db-chat/conversations` | 新しい会話を作成 |
+| PUT | `/api/v1/ai/db-chat/conversations/{conversationId}/title` | 会話タイトルを更新 |
+| PUT | `/api/v1/ai/db-chat/conversations/{conversationId}/formId` | 会話に紐づくデータベースIDを更新 |
+| DELETE | `/api/v1/ai/db-chat/conversations/{conversationId}` | 会話を削除 |
+| GET | `/api/v1/ai/db-chat/conversations/{conversationId}/messages` | 会話のメッセージ一覧を取得 |
+| POST | `/api/v1/ai/db-chat/conversations/{conversationId}/messages` | 会話にメッセージを保存 |
+
+### POST /api/v1/ai/db-chat/conversations
+
+```json
+{ "title": "顧客管理DB作成" }
+```
+
+| フィールド | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| title | string | Yes | 会話タイトル（最大200文字） |
+
+レスポンス: `{ "conversationId": "uuid" }`
+
+### POST /api/v1/ai/db-chat/conversations/{conversationId}/messages
+
+```json
+{
+  "role": "user",
+  "content": "顧客管理データベースを作成して",
+  "messageId": "msg-uuid",
+  "messageType": "text",
+  "generatedFormId": "form-uuid"
+}
+```
+
+| フィールド | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| role | string | Yes | `user` または `assistant` |
+| content | string | Yes | メッセージ本文（最大100,000文字） |
+| messageId | string | No | 省略時は自動採番 |
+| messageType | string | No | メッセージ種別 |
+| generatedFormId | string | No | 生成されたデータベースID |
+
+### 共通エラー
+
+| HTTPコード | 説明 |
+|------------|------|
+| 403 | 他ユーザーの会話へのアクセス（ownership check） |
+| 400 | バリデーションエラー |
+
+---
+
+**更新日**: 2026-05-30（PR #2073 — AI DB チャット会話ログ永続化）
