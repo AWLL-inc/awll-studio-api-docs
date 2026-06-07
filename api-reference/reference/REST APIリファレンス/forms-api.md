@@ -240,6 +240,104 @@ REFERENCE フィールド用のレコードサマリーを取得します。
 
 ---
 
+## レコードレベル権限制御（Record Rules）
+
+データベース定義の `schema` に権限ルールを埋め込むことで、レコード単位・フィールド単位の細粒度アクセス制御を行えます。**専用のエンドポイントはなく、`POST` / `PUT /api/v1/forms/{formId}` の `schema` に含めて保存します。**
+
+管理画面では「データベースビルダー → 情報タブ → レコードルール」で同等の設定が可能です。
+
+### スキーマ構造
+
+```json
+{
+  "title": "顧客マスタ",
+  "schema": {
+    "fields": [
+      {
+        "fieldCode": "salary",
+        "label": "給与",
+        "type": "NUMBER",
+        "readRule":  { "expression": "#user.roles.contains('HR')" },
+        "writeRule": { "expression": "#user.roles.contains('HR')" }
+      }
+    ],
+    "recordReadRule":   { "expression": "#meta.createdBy == #user.id", "description": "作成者本人のみ閲覧可" },
+    "recordWriteRule":  { "expression": "#meta.createdBy == #user.id" },
+    "recordDeleteRule": { "expression": "#user.roles.contains('MANAGER')" }
+  }
+}
+```
+
+| 配置場所 | フィールド | 制御対象 |
+|---------|-----------|---------|
+| `schema.recordReadRule` | レコード READ | 一覧・取得時の可視性 |
+| `schema.recordWriteRule` | レコード WRITE | 更新の可否 |
+| `schema.recordDeleteRule` | レコード DELETE | 削除の可否 |
+| `schema.fields[].readRule` | フィールド READ | 個別フィールドの可視性 |
+| `schema.fields[].writeRule` | フィールド WRITE | 個別フィールドの更新可否 |
+
+すべて任意です。**未設定（null / 省略）の場合は全許可**（後方互換）。
+
+### PermissionRule オブジェクト
+
+| フィールド | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| expression | string | Yes | 評価式（boolean を返す条件式）。空文字は「未設定 = 全許可」扱い |
+| description | string | No | 管理UI 表示用の説明文 |
+| denyMode | string | No | フィールド READ 拒否時の挙動。`HIDE`（除外） / `MASK`（null 化） / `REDACT`（`"***"` 化）。`fields[].readRule` でのみ意味を持つ |
+
+### 評価式（DSL）
+
+boolean を返す **読み取り専用の条件式**です。
+
+**演算子**
+
+| 種別 | 記法 |
+|------|------|
+| 比較 | `==` `!=` `>` `<` `>=` `<=` |
+| 論理 | `and` `or` `not`（`&&` `\|\|` `!` も可） |
+| 集合包含 | `#user.roles.contains('ADMIN')` |
+
+**参照可能な変数**
+
+| 変数 | 値 | 例 |
+|------|-----|-----|
+| `#user.id` | ログインユーザーの一意ID（レコード作成者IDと同じ値ドメイン） | `#meta.createdBy == #user.id` |
+| `#user.email` | メールアドレス | `#user.email == 'admin@example.com'` |
+| `#user.roles` | ロール集合 | `#user.roles.contains('APPROVER')` |
+| `#user.groups` | 所属グループ集合 | `#user.groups.contains('hr')` |
+| `#meta.createdBy` | レコード作成者のユーザーID | `#meta.createdBy == #user.id` |
+| `#meta.updatedBy` | レコード更新者のユーザーID | |
+| `#meta.createdAt` / `#meta.updatedAt` | 作成・更新日時 | |
+| bare `fieldCode` | 業務フィールド値（回答データ内の値） | `status == 'DRAFT'` |
+
+> **名前空間の使い分け**: システムメタ（作成者等）は必ず `#meta.X` で参照します。`fieldCode = "createdBy"` のような業務フィールドを定義しても、`#meta.createdBy` は常にシステム値を、bare `createdBy` は業務フィールド値を参照します（完全に別名前空間）。
+
+**式の例**
+
+```text
+#meta.createdBy == #user.id                                  // 作成者本人のみ
+#user.roles.contains('ADMIN') or owner.userId == #user.id    // ADMIN または owner フィールド一致
+status == 'DRAFT' or #user.roles.contains('APPROVER')        // 業務フィールド status を参照
+#meta.createdBy == #user.id or #user.groups.contains('hr')   // 作成者本人または hr グループ
+```
+
+### 評価ルール（重要）
+
+1. **ADMIN ロール所持者は全ルールをスキップして全許可**（短絡評価）
+2. **ルール未設定（null / 空 expression）は全許可**（後方互換）
+3. **構文エラー・実行時エラーは fail-closed（拒否）** にフォールバック
+
+### 一覧（READ）時の制約
+
+レコード一覧は投影テーブル（Projection / Summary）に対して後段フィルタとして評価されます。Summary には `searchable: true` を指定したフィールドのみが含まれるため、**一覧の `recordReadRule` で参照する業務フィールドは必ず `searchable: true` に設定してください**。未指定のフィールドを参照するルールは一覧では fail-closed（拒否）となります（単一取得 API とは挙動が一部異なります）。
+
+### セキュリティ
+
+評価器は読み取り専用モードで実行され、型参照・コンストラクタ呼び出し・変数代入・任意コード実行はすべて遮断されます。ルール式で利用できるのは上記の変数と、それらのインスタンスメソッド（`roles.contains(...)`, `String.startsWith(...)` 等）のみです。
+
+---
+
 ## AI自動生成エンドポイント
 
 
@@ -253,4 +351,4 @@ REFERENCE フィールド用のレコードサマリーを取得します。
 
 ---
 
-**更新日**: 2026-04-16
+**更新日**: 2026-06-08
