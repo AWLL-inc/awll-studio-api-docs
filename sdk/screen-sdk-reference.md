@@ -390,7 +390,7 @@ const filesValue = record.values.receipts; // FileMetadata[] | null
 
 `FileMetadata` の構造は [useFileUpload](#usefileupload) セクションを参照してください。
 
-> ⚠️ **重要**: `FileMetadata.key` はストレージオブジェクトキーであり、**URLではありません**。画像表示やダウンロードには `useFileUpload().downloadFile(key)` で署名付きURLを取得してください。
+> ⚠️ **重要**: `FileMetadata.key` はS3オブジェクトキーであり、**URLではありません**。画像表示やダウンロードには `useFileUpload().downloadFile(key)` で署名付きURLを取得してください。
 
 ```tsx
 // ✅ 正しい: downloadFileで署名付きURLを取得して表示
@@ -1176,7 +1176,7 @@ const { data } = useBulkNodes({
 |------|------|
 | answerIds最大件数 | 500件/リクエスト |
 | 部分エラー | 1件の失敗が全体をブロックしない（errors に記録） |
-| バックエンド実行 | 現時点では逐次データベースクエリ（将来的に並列化予定） |
+| バックエンド実行 | 現時点では逐次データストアクエリ（将来的に並列化予定） |
 
 ---
 
@@ -1881,7 +1881,7 @@ function useFileUpload(): {
 
 ### uploadFile(file, options?)
 
-ファイルをストレージにアップロードし、メタデータを返します。内部でFileをBase64に変換してpostMessage経由で送信し、presigned PUT URLを取得してストレージに直接PUTします。
+ファイルをS3にアップロードし、メタデータを返します。内部でFileをBase64に変換してpostMessage経由で送信し、presigned PUT URLを取得してS3に直接PUTします。
 
 ```tsx
 const { uploadFile } = useFileUpload();
@@ -1896,7 +1896,7 @@ const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     answerId: 'ANSWER_ID',     // オプション: レコードID
   });
 
-  console.log(metadata.key);        // ストレージオブジェクトキー
+  console.log(metadata.key);        // S3オブジェクトキー
   console.log(metadata.fileName);   // ファイル名
   console.log(metadata.mimeType);   // MIME タイプ
   console.log(metadata.size);       // ファイルサイズ（バイト）
@@ -1917,7 +1917,7 @@ const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
 
 ```typescript
 interface FileMetadata {
-  key: string;           // ストレージオブジェクトキー（ダウンロード・削除時に使用）
+  key: string;           // S3オブジェクトキー（ダウンロード・削除時に使用）
   fileName: string;      // ファイル名
   mimeType: string;      // MIME タイプ
   size: number;          // ファイルサイズ（バイト）
@@ -1933,7 +1933,7 @@ interface FileMetadata {
 
 ### downloadFile(key, forceDownload?)
 
-ストレージのファイルの署名付きURL（15分有効）を取得します。
+S3のファイルの署名付きURL（15分有効）を取得します。
 
 ```tsx
 const { downloadFile } = useFileUpload();
@@ -1948,7 +1948,7 @@ const { url } = await downloadFile(fileKey, false);  // forceDownload=false
 
 | パラメータ | 型 | 必須 | 説明 |
 |-----------|-----|------|------|
-| `key` | `string` | Yes | ストレージオブジェクトキー（`uploadFile` の戻り値 `.key`） |
+| `key` | `string` | Yes | S3オブジェクトキー（`uploadFile` の戻り値 `.key`） |
 | `forceDownload` | `boolean` | No | `true`（デフォルト）: 新規タブで開く + `Content-Disposition: attachment`。`false`: URLのみ返却 + `Content-Disposition: inline`（プレビュー用） |
 
 **戻り値**: `Promise<{ url: string }>` — 署名付きURL（15分有効）
@@ -1959,7 +1959,7 @@ const { url } = await downloadFile(fileKey, false);  // forceDownload=false
 
 ### deleteFile(key)
 
-ストレージ上のファイルを削除します。削除後はレコード側でもファイルフィールドを `null` に更新してください。
+S3上のファイルを削除します。削除後はレコード側でもファイルフィールドを `null` に更新してください。
 
 ```tsx
 const { deleteFile } = useFileUpload();
@@ -1977,7 +1977,7 @@ const handleDelete = async () => {
 
 | パラメータ | 型 | 必須 | 説明 |
 |-----------|-----|------|------|
-| `key` | `string` | Yes | ストレージオブジェクトキー |
+| `key` | `string` | Yes | S3オブジェクトキー |
 
 **戻り値**: `Promise<{ success: boolean }>`
 
@@ -2045,14 +2045,14 @@ export default function FileUploadDemo() {
 1. **Base64変換**: iframe内でFileオブジェクトを直接postMessageで送信できないため、内部でBase64に変換しています。100MBを超えるファイルはメモリ制約でエラーになる可能性があります。
 2. **ファイル名サニタイズ**: バックエンド側でパストラバーサル・Content-Dispositionインジェクション防止のサニタイズが自動適用されます。
 3. **暗号化**: アップロードされたファイルはAWS KMSで自動暗号化されます。
-4. **テナント分離**: ストレージキーの `tenants/{tenantCode}/` プレフィックスにより、テナント間のファイルアクセスは自動的にブロックされます。
+4. **テナント分離**: S3キーの `tenants/{tenantCode}/` プレフィックスにより、テナント間のファイルアクセスは自動的にブロックされます。
 5. **権限**: アップロードには `FORM_ANSWER:WRITE`、ダウンロードには `FORM_ANSWER:READ` 権限が必要です。
 
 ### 画像のインライン表示（img タグ）
 
 FILE型フィールドの画像を画面内で `<img>` タグとして表示するには、`downloadFile()` で署名付きURLを取得して使用します。
 
-> ✅ **CSP対応済み**: iframe内のCSPは `img-src 'self' data: blob: https://*.storage.example.com` を許可しているため、署名付きURLの画像を直接表示できます。
+> ✅ **CSP対応済み**: iframe内のCSPは `img-src 'self' data: blob: https://*.amazonaws.com` を許可しているため、S3署名付きURLの画像を直接表示できます。
 
 #### 単一ファイルの画像プレビュー
 
@@ -2294,6 +2294,94 @@ function SimplePdfViewer({ fileKey }) {
   return <div ref={containerRef} />;
 }
 ```
+
+---
+
+## awll.users — ユーザー検索・表示名解決
+
+React Hook ではなく **Promise ベースの programmatic API**（`awll.*` ネームスペース）です。`@` メンションの候補表示や、`@{userId}` 記法の表示名解決に使います。
+
+> ℹ️ iframe（Screen）内でのみ動作します。ホストアプリ外（通常のブラウザタブ）では `awll SDK API は iframe 内でのみ動作します` エラーになります。
+
+```typescript
+import { awll } from '@awll/sdk';
+```
+
+### 共通の戻り値型 `MentionableUser`
+
+```typescript
+interface MentionableUser {
+  userId: string;
+  displayName: string;  // 表示名（必須）
+  username?: string;
+  email?: string;
+}
+```
+
+### awll.users.searchMentionable(formId, options?)
+
+指定データベースの**レコード閲覧権限を持つテナント内ユーザー**を検索します。`@` サジェスト候補の構築に使用。
+
+```typescript
+awll.users.searchMentionable(
+  formId: string,
+  options?: { q?: string; limit?: number },
+): Promise<MentionableUser[]>
+```
+
+| パラメータ | 必須 | 説明 |
+|-----------|------|------|
+| `formId` | ✅ | 対象データベース ID |
+| `options.q` | – | 名前 / email の部分一致クエリ。省略時は権限を持つユーザーを上限まで返す |
+| `options.limit` | – | 最大件数（default `20` / **max `50`**。範囲外は自動clamp） |
+
+**認可（二段構え）**:
+- 呼出元自身が `formId` のレコード閲覧権限を持つこと（持たなければ `403`）
+- 返却ユーザーも `formId` の閲覧権限保持者に限定（テナント分離あり）
+
+```tsx
+import { useCallback } from 'react';
+import { awll } from '@awll/sdk';
+
+// MentionInput のカスタム候補ソースとして
+const searchUsers = useCallback(
+  (q: string) => awll.users.searchMentionable(formId, { q, limit: 10 }),
+  [formId],
+);
+
+// 直接呼び出し
+const candidates = await awll.users.searchMentionable('FORM_X', { q: 'hay', limit: 20 });
+```
+
+### awll.users.lookup(userIds)
+
+`userId` の配列から `displayName` / `username` / `email` を**一括解決**します。`@{userId}` 記法の表示名解決（view モード）に使用。
+
+```typescript
+awll.users.lookup(userIds: string[]): Promise<Record<string, MentionableUser>>
+```
+
+| 項目 | 内容 |
+|------|------|
+| 戻り値 | `userId` をキーとした `MentionableUser` のマップ |
+| 権限 | 認証済みユーザー（同テナント内では displayName は公開情報扱い） |
+| 上限 | **200 IDs / request**（超過は `400`） |
+| 除外 | テナント外 / 存在しない ID はマップから除外される |
+| 空入力 | 空配列はバックエンドを叩かず `{}` を即返す |
+
+```tsx
+const map = await awll.users.lookup(['uid-1', 'uid-2']);
+const name = map['uid-1']?.displayName ?? '不明なユーザー';
+```
+
+### ⚠️ テナント全ユーザー一覧 API は画面 SDK 未提供
+
+画面 SDK の `awll.users` は上記 **検索（権限フィルタ + max 50）** と **ID 解決** のみで、テナントの全ユーザーを列挙する API（`awll.users.list` 等）は**提供していません**。
+
+- USER フィールドのドロップダウンは内部的に `GET /api/v1/users/summary`（権限 `FORM_ANSWER:READ` / max 1000）を使用しますが、これは**ホスト側の実装**であり、画面 SDK ブリッジ経由では公開していません。
+- 全ユーザー列挙が必要な場合は、新規 SDK API（`awll.users.list`）+ バックエンドハンドラ追加が必要です。
+
+> メンション / コメント文脈での使い方は [notification-comment-mention-guide.md](./notification-comment-mention-guide.md) を参照。
 
 ---
 
