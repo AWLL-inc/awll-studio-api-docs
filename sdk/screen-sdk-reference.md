@@ -829,10 +829,12 @@ export default function MyScreen() {
 function useUrlState(
   key: string,
   defaultValue: string
-): [string, (next: string | ((prev: string) => string)) => void];
+): [string, (next: string | ((prev: string) => string)) => Promise<void>];
 ```
 
 > ⚠️ URL に保持する都合上、**値は文字列のみ**です。数値・真偽値・オブジェクトは呼び出し側で文字列化してください。
+
+> 💡 `setValue` は URL 反映が非同期のため `Promise<void>` を返します。基本は `await` 不要ですが、反映完了を待ちたい場合は `await setStatus('active')` とできます。
 
 #### 使用例
 
