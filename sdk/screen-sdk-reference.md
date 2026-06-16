@@ -1,7 +1,7 @@
 # Screen SDK API Reference
 
 **対象**: AWLL Studio画面開発者
-**最終更新**: 2026-04-14
+**最終更新**: 2026-06-16
 
 ## インポート方法
 
@@ -14,6 +14,8 @@ import {
   useNodes,
   useNodeMutation,
   useFileUpload,
+  useScreenStorage, // 画面スコープの永続ストレージ（KV）
+  useUrlState,      // filter/sort 等を URL クエリに保持
 } from '@awll/sdk';
 ```
 
@@ -743,6 +745,154 @@ export default function CustomerListWithDelete() {
   );
 }
 ```
+
+---
+
+## 状態の永続化 — useScreenStorage / useUrlState / awll.storage
+
+画面の状態（フィルタ条件・ソート順・折りたたみ状態・下書き等）を、ページ再読み込みや再訪問をまたいで保持するための API です。
+
+> ⚠️ **`window.localStorage` / `window.sessionStorage` は画面コードから使用できません。**
+> 画面はセキュリティのため独立したサンドボックス（隔離オリジン）で実行されており、ブラウザ標準のストレージへアクセスすると `SecurityError` になります。永続化が必要な場合は、必ず以下の SDK API を使用してください。
+> 値は SDK が画面・テナント単位に分離したクライアント側ストア（ブラウザの IndexedDB）へ保存します。サーバーには送信されず、認証トークンとは隔離されます。
+
+### どちらを使うか
+
+| API | 保存先 | 共有/復元 | 主な用途 |
+|-----|--------|----------|----------|
+| **`useUrlState`** | URL クエリパラメータ | URL を共有・ブックマークで復元可能 | フィルタ・ソート・タブ・ページ番号など「URL で共有したい状態」 |
+| **`useScreenStorage`** | クライアント永続ストア（IndexedDB） | 同一ブラウザでのみ復元 | 下書き・折りたたみ状態・最後の選択など「URL に出したくない状態」 |
+| **`awll.storage`**（命令的 API） | クライアント永続ストア（IndexedDB） | 同一ブラウザでのみ復元 | Hook を使えない場所（イベントハンドラ内・非 React コード）からの読み書き |
+
+---
+
+### useScreenStorage()
+
+画面スコープの永続 KV を React state として扱うフック。値は **自動で JSON 直列化/復元** されるため、オブジェクトや配列もそのまま保存できます。
+
+#### シグネチャ
+
+```typescript
+function useScreenStorage<T>(
+  key: string,
+  defaultValue: T
+): {
+  value: T;                                  // 現在値（読込完了までは defaultValue）
+  setValue: (next: T | ((prev: T) => T)) => void; // 保存（関数アップデータ可）
+  remove: () => void;                        // 削除して defaultValue に戻す
+  loading: boolean;                          // 初回読込中は true
+};
+```
+
+#### 使用例
+
+```tsx
+import { useScreenStorage } from '@awll/sdk';
+
+export default function MyScreen() {
+  const { value: filters, setValue: setFilters, loading } = useScreenStorage('list.filters', {
+    status: 'all',
+    keyword: '',
+  });
+
+  if (loading) return <div>読み込み中...</div>;
+
+  return (
+    <div>
+      <input
+        value={filters.keyword}
+        onChange={(e) => setFilters((prev) => ({ ...prev, keyword: e.target.value }))}
+      />
+      <select
+        value={filters.status}
+        onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value }))}
+      >
+        <option value="all">すべて</option>
+        <option value="active">有効</option>
+      </select>
+    </div>
+  );
+}
+```
+
+> 💡 初回マウント時は非同期で値を読み込むため、読み込み完了までは `defaultValue` が返り `loading === true` になります。保存済み値に依存する描画は `loading` を見てから行ってください。
+
+---
+
+### useUrlState()
+
+状態を **URL クエリパラメータ** に保持するフック。`useState` と同じ `[value, setValue]` を返します。URL に状態が乗るため、その URL を共有・ブックマークすると同じ状態を再現できます。
+
+#### シグネチャ
+
+```typescript
+function useUrlState(
+  key: string,
+  defaultValue: string
+): [string, (next: string | ((prev: string) => string)) => void];
+```
+
+> ⚠️ URL に保持する都合上、**値は文字列のみ**です。数値・真偽値・オブジェクトは呼び出し側で文字列化してください。
+
+#### 使用例
+
+```tsx
+import { useUrlState } from '@awll/sdk';
+
+export default function MyScreen() {
+  const [status, setStatus] = useUrlState('status', 'all'); // ?status=all
+  const [sort, setSort] = useUrlState('sort', 'createdAt');
+
+  return (
+    <div>
+      <select value={status} onChange={(e) => setStatus(e.target.value)}>
+        <option value="all">すべて</option>
+        <option value="active">有効</option>
+      </select>
+      <button onClick={() => setSort('updatedAt')}>更新日順</button>
+    </div>
+  );
+}
+```
+
+---
+
+### awll.storage（命令的 API）
+
+Hook を使えない場所（イベントハンドラ内・非 React のヘルパー関数等）からクライアント永続ストアを読み書きする低レベル API。すべて `Promise` を返す **非同期** で、`localStorage` 互換のため **値は文字列のみ**（オブジェクトは `JSON.stringify` してから渡してください）。
+
+```typescript
+import { awll } from '@awll/sdk';
+
+await awll.storage.setItem('draft', JSON.stringify({ title: '...' })); // 保存（文字列のみ）
+const raw = await awll.storage.getItem('draft');                        // 取得（無ければ null）
+const draft = raw ? JSON.parse(raw) : null;
+await awll.storage.removeItem('draft');                                 // 削除
+const keys = await awll.storage.keys();                                 // この画面の全キー
+```
+
+| メソッド | シグネチャ | 説明 |
+|---------|-----------|------|
+| `getItem` | `(key: string) => Promise<string \| null>` | 値を取得。無ければ `null` |
+| `setItem` | `(key: string, value: string) => Promise<void>` | 値を保存（文字列のみ） |
+| `removeItem` | `(key: string) => Promise<void>` | 値を削除 |
+| `keys` | `() => Promise<string[]>` | この画面に保存された全キー |
+
+---
+
+### 制約
+
+`useScreenStorage` と `awll.storage` が使うクライアント永続ストアには以下の上限があります（超過時は保存に失敗し、`useScreenStorage` は `console.warn` を出力）。
+
+| 項目 | 上限 |
+|------|------|
+| キー文字 | `A-Z a-z 0-9 _ . -` のみ・最大 **128 文字** |
+| 値のサイズ | 約 **100KB**（UTF-16 文字数で 100,000） |
+| 1 画面あたりのキー数 | 最大 **200** |
+
+- **スコープ**: 保存値は「テナント × 画面」単位で分離されます。別の画面・別テナントからは参照できません。
+- **同期しない**: クライアント側のストアのため、別のブラウザ・別の端末には引き継がれません。端末をまたいで保持したいデータはレコード（`useMutation`）として保存してください。
+- **localStorage の代替**: `window.localStorage.setItem('k', v)` 相当は `awll.storage.setItem('k', v)`（非同期）または `useScreenStorage` に置き換えてください。
 
 ---
 

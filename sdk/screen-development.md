@@ -2,7 +2,7 @@
 
 **対象**: AWLL Studioプラットフォームで画面を開発する開発者
 **難易度**: 初級〜中級
-**最終更新**: 2026-04-30
+**最終更新**: 2026-06-16
 
 ## 概要
 
@@ -396,6 +396,42 @@ window.location.search = `?tab=${TAB_KEYS[v]}`;
 - 検索クエリ・フィルタ条件（`?search=alice&status=active`）
 - 詳細画面で開いているサブタブやセクション
 - ソート順
+
+### 状態の永続化 API（useUrlState / useScreenStorage）
+
+上記のように `navigateToScreen` で URL を組み立てる代わりに、状態を宣言的に永続化する SDK フックが利用できます。詳細・制約は [Screen SDK リファレンス - 状態の永続化](./screen-sdk-reference.md#状態の永続化--usescreenstorage--useurlstate--awllstorage) を参照してください。
+
+> ⚠️ **画面コードから `window.localStorage` / `window.sessionStorage` は使えません**（サンドボックス化された隔離オリジンで `SecurityError` になります）。永続化は必ず以下の SDK API を使用してください。
+
+#### useUrlState — URL に出したい状態（共有・復元可能）
+
+フィルタ・ソート・タブなど「URL で共有したい状態」は `useUrlState` が最も簡潔です。`useState` と同じ使い心地で、値が URL クエリに反映されます（**値は文字列のみ**）。
+
+```tsx
+import { useUrlState } from '@awll/sdk';
+
+export default function App() {
+  const [status, setStatus] = useUrlState('status', 'all'); // ?status=all
+  const [sort, setSort] = useUrlState('sort', 'createdAt');
+  // setStatus('active') すると URL が ?status=active に更新され、リロード/共有で復元される
+}
+```
+
+#### useScreenStorage — URL に出したくない状態（下書き等）
+
+下書き・折りたたみ状態・最後の選択など「URL に出したくないが保持したい状態」は `useScreenStorage` を使います。値は自動で JSON 直列化され、画面・テナント単位に分離したクライアント側ストア（IndexedDB）へ保存されます（同一ブラウザ内でのみ復元・端末間では同期しません）。
+
+```tsx
+import { useScreenStorage } from '@awll/sdk';
+
+export default function App() {
+  const { value: draft, setValue: setDraft, loading } = useScreenStorage('draft', { title: '' });
+  if (loading) return <div>読み込み中...</div>;
+  // setDraft({ title: '...' }) で保存。リロード後も復元される
+}
+```
+
+> 💡 **使い分け**: 共有/ブックマークで復元したい → `useUrlState`。同一ブラウザで継続したいだけ → `useScreenStorage`。端末をまたいで残したい → レコード（`useMutation`）として保存。
 
 ### パターン: 複数画面をまたぐ業務フロー
 
