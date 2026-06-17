@@ -2078,6 +2078,31 @@ export default function PdfPreview() {
 
 ---
 
+## useAIChat()
+
+画像/PDF を AI に添付してテキスト抽出（OCR・内容抽出）を行うフック。host が `/ai/chat` の SSE を完走消費し、タイムアウト(300秒)・トークン付与を肩代わりする（アップロード不要・base64 添付）。`useAwllAIChat` は alias。
+
+### 使用例
+
+```tsx
+import { useAIChat } from '@awll/sdk';
+
+const { chat } = useAIChat();
+const { text } = await chat({
+  message: '抽出指示文（AIには「JSONのみ出力」と指示する）',
+  attachments: [
+    { filename, mimeType, size, content: { type: '画像は image / PDF は document', source: { type: 'base64', media_type: mimeType, data: base64 } } },
+  ],
+});
+const parsed = JSON.parse(text);
+// base64 は画面内で FileReader.readAsDataURL の ',' 以降を使う（アップロード不要）
+```
+
+### 注意
+- `/api/v1/ai/chat` を直接叩かない / 自前の固定タイムアウト(120秒等)を実装しない / PDF を `<iframe>` で表示しない。SSE 消費・300秒タイムアウト・トークン付与は host が担う。
+
+---
+
 ## サブテーブル（ARRAY型）データ取得のベストプラクティス
 
 ### 重要: useRecords はサブテーブルの完全なデータを保証しない
