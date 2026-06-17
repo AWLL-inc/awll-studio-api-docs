@@ -161,6 +161,62 @@ NEW_TOKEN=$(curl -s -X POST "$API/api/auth/token/refresh" \
 | 403 | 所属外テナント、権限不足 | テナントコードとロールを確認してください |
 | 429 | Rate Limit 超過（500 req/min） | 時間を置いて再試行してください |
 
+## サインアップ (Signup)
+
+**ベースパス**: `/api/signup`
+**権限**: なし（公開エンドポイント・認証不要）
+
+企業の利用申込（デモ / 環境発行）を受け付ける公開エンドポイントです。受付番号を返します。
+
+### POST /api/signup
+
+#### リクエスト
+
+```json
+{
+  "companyName": "株式会社サンプル",
+  "contactName": "山田太郎",
+  "email": "taro@example.com",
+  "billingEmail": "billing@example.com",
+  "companyAddress": "東京都...",
+  "requestType": "environment",
+  "agreedToTerms": true,
+  "agreedToPrivacy": true,
+  "agreedToLegalNotice": true,
+  "status": "PENDING"
+}
+```
+
+| フィールド | 必須 | 説明 |
+|-----------|------|------|
+| companyName | ○ | 会社名 |
+| contactName | ○ | 担当者名 |
+| email | ○ | 連絡先メールアドレス |
+| billingEmail | ○ | 請求先メールアドレス |
+| companyAddress | ○ | 会社住所 |
+| requestType | ○ | `demo`（デモ） / `environment`（環境発行） |
+| agreedToTerms / agreedToPrivacy / agreedToLegalNotice | ○ | 各種同意フラグ |
+| referralSource / referrerName | - | 紹介元・紹介者名（任意） |
+| representativeTitle / representativeName | - | 代表者役職・氏名（任意） |
+| notes | - | 備考（任意） |
+
+#### レスポンス (201)
+
+```json
+{
+  "signupId": "01J...",
+  "receiptNumber": "AWLL-2026-0001",
+  "status": "PENDING",
+  "createdAt": "2026-06-17T00:00:00Z"
+}
+```
+
+#### エラー
+
+| ステータス | 説明 |
+|-----------|------|
+| 400 | バリデーションエラー |
+
 ---
 
-**更新日**: 2026-03-16
+**更新日**: 2026-06-17

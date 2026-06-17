@@ -120,6 +120,34 @@
     {
       "name": "Notifications",
       "description": "アプリ内通知センター"
+    },
+    {
+      "name": "Screen Permissions",
+      "description": "画面定義権限管理API - 画面・フォルダ単位の権限付与/取消"
+    },
+    {
+      "name": "Admin Roles",
+      "description": "管理者用ロール管理API - ロールのCRUD・権限割当"
+    },
+    {
+      "name": "Admin Users",
+      "description": "管理者用ユーザー管理API - ユーザーのCRUD・招待"
+    },
+    {
+      "name": "Script Rules",
+      "description": "スクリプトルール管理API - ルールのCRUD操作、テスト実行"
+    },
+    {
+      "name": "Bulk Nodes",
+      "description": "一括ノード取得API - 複数answerIdのノードを1回で取得"
+    },
+    {
+      "name": "Public Forms",
+      "description": "公開フォームAPI - 認証不要のフォーム取得・回答送信"
+    },
+    {
+      "name": "Signup",
+      "description": "サインアップAPI - 認証不要の申込受付"
     }
   ],
   "paths": {
@@ -1184,6 +1212,61 @@
                 }
               }
             }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "Patch Answers"
+        ],
+        "summary": "回答一括差分更新",
+        "description": "\n            複数の回答を一括で差分更新します（最大500件）。\n            各レコードごとに楽観ロック（expectedVersion）を指定し、部分成功をサポートします。\n\n            **権限:** FORM_ANSWER:WRITE + BUSINESS_ACCESS権限\n        ",
+        "operationId": "bulkPatchAnswers",
+        "parameters": [
+          {
+            "name": "formId",
+            "in": "path",
+            "description": "データベースID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkPatchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "一括差分更新結果",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkOperationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "バリデーションエラー（件数超過等）"
+          },
+          "401": {
+            "description": "認証エラー"
+          },
+          "403": {
+            "description": "権限不足"
           }
         },
         "security": [
@@ -7738,6 +7821,1983 @@
           }
         }
       }
+    },
+    "/api/v1/screens/{screenId}/compile": {
+      "post": {
+        "tags": [
+          "Screens"
+        ],
+        "summary": "画面コンパイル",
+        "description": "\n            画面ソースコードをコンパイルし、永続化します。\n            デプロイ前にコンパイルが必要です。\n\n            **権限:** SCREEN_DEFINITION:WRITE + 画面権限(EDIT)\n        ",
+        "operationId": "compileScreen",
+        "parameters": [
+          {
+            "name": "screenId",
+            "in": "path",
+            "description": "画面ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompileScreenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "コンパイル成功",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompileScreenResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ソースコードが空・コンパイルエラー"
+          },
+          "401": {
+            "description": "認証エラー"
+          },
+          "403": {
+            "description": "権限不足"
+          },
+          "404": {
+            "description": "画面が存在しない"
+          },
+          "500": {
+            "description": "コンパイルAPI通信エラー"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/screens/folders": {
+      "get": {
+        "tags": [
+          "Screens"
+        ],
+        "summary": "フォルダ一覧取得",
+        "description": "\n            テナント内の画面定義フォルダ一覧を取得します。\n            画面の folderPath 属性からユニークなフォルダパスを動的生成します。\n\n            **権限:** SCREEN_DEFINITION:READ\n        ",
+        "operationId": "listFolders",
+        "responses": {
+          "200": {
+            "description": "取得成功",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "認証エラー"
+          },
+          "403": {
+            "description": "権限不足"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/screens/{screenId}/move": {
+      "post": {
+        "tags": [
+          "Screens"
+        ],
+        "summary": "画面フォルダ移動",
+        "description": "\n            画面定義を指定フォルダに移動します。\n            フォルダパスは Unix 風（例: /顧客管理/ダッシュボード）。\n            \"..\" は禁止（パストラバーサル防止）。\n\n            **権限:** SCREEN_DEFINITION:WRITE + 画面権限(EDIT)\n        ",
+        "operationId": "moveScreen",
+        "parameters": [
+          {
+            "name": "screenId",
+            "in": "path",
+            "description": "画面ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveScreenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "移動成功",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScreenDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "バリデーションエラー"
+          },
+          "401": {
+            "description": "認証エラー"
+          },
+          "403": {
+            "description": "権限不足"
+          },
+          "404": {
+            "description": "画面が存在しない"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/permissions/screens/{screenId}/check": {
+      "get": {
+        "tags": [
+          "Screen Permissions"
+        ],
+        "summary": "画面権限チェック",
+        "description": "現在のユーザーが指定画面に対して持つ閲覧・編集権限を返します。\n\n**権限:** 認証済み",
+        "operationId": "checkScreenPermissions",
+        "parameters": [
+          {
+            "name": "screenId",
+            "in": "path",
+            "description": "画面ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "チェック成功",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScreenPermissionCheckResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "認証エラー"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/permissions/screens/{screenId}/users": {
+      "get": {
+        "tags": [
+          "Screen Permissions"
+        ],
+        "summary": "画面権限者一覧取得",
+        "description": "指定画面に権限を付与されたユーザー一覧を取得します。\n\n**権限:** 画面権限(EDIT)",
+        "operationId": "getScreenPermissions",
+        "parameters": [
+          {
+            "name": "screenId",
+            "in": "path",
+            "description": "画面ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "取得成功",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ScreenPermissionDto"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "権限不足"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/permissions/screens/grant": {
+      "post": {
+        "tags": [
+          "Screen Permissions"
+        ],
+        "summary": "画面権限付与",
+        "description": "指定ユーザーに画面権限（VIEW / EDIT）を付与します。\n\n**権限:** 画面権限(EDIT)",
+        "operationId": "grantScreenPermission",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrantScreenPermissionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "付与成功",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScreenPermissionDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "バリデーションエラー"
+          },
+          "403": {
+            "description": "権限不足"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/permissions/screens/revoke": {
+      "delete": {
+        "tags": [
+          "Screen Permissions"
+        ],
+        "summary": "画面権限取り消し",
+        "description": "指定ユーザーの画面権限を取り消します。\n\n**権限:** 画面権限(EDIT)",
+        "operationId": "revokeScreenPermission",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokeScreenPermissionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "取り消し成功"
+          },
+          "403": {
+            "description": "権限不足"
+          },
+          "404": {
+            "description": "権限が存在しない"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/permissions/screens/folders/grant": {
+      "post": {
+        "tags": [
+          "Screen Permissions"
+        ],
+        "summary": "フォルダ権限付与",
+        "description": "フォルダに業務アクセス権限を付与します。\n\n**権限:** ADMIN",
+        "operationId": "grantFolderPermission",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrantFolderPermissionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "付与成功",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderPermissionDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "バリデーションエラー"
+          },
+          "403": {
+            "description": "ADMIN権限が必要"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/permissions/screens/folders/revoke": {
+      "delete": {
+        "tags": [
+          "Screen Permissions"
+        ],
+        "summary": "フォルダ権限取り消し",
+        "description": "フォルダの業務アクセス権限を取り消します。\n\n**権限:** ADMIN",
+        "operationId": "revokeFolderPermission",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokeFolderPermissionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "取り消し成功"
+          },
+          "403": {
+            "description": "ADMIN権限が必要"
+          },
+          "404": {
+            "description": "権限が存在しない"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/permissions/screens/folders/users": {
+      "get": {
+        "tags": [
+          "Screen Permissions"
+        ],
+        "summary": "フォルダ権限者一覧取得",
+        "description": "指定フォルダの権限者一覧を取得します。\n\n**権限:** ADMIN",
+        "operationId": "getFolderPermissions",
+        "parameters": [
+          {
+            "name": "folderPath",
+            "in": "query",
+            "description": "フォルダパス",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "/顧客管理"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "取得成功",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FolderPermissionDto"
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ADMIN権限が必要"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/admin/roles": {
+      "post": {
+        "tags": [
+          "Admin Roles"
+        ],
+        "summary": "ロール作成",
+        "description": "新しいロールを作成します。\n\n**権限:** ADMIN",
+        "operationId": "createRole",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRoleRequestDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "作成成功",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "バリデーションエラー"
+          },
+          "401": {
+            "description": "認証エラー"
+          },
+          "403": {
+            "description": "権限不足"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/admin/roles/{roleId}": {
+      "put": {
+        "tags": [
+          "Admin Roles"
+        ],
+        "summary": "ロール更新",
+        "description": "ロールの名称・説明を更新します。\n\n**権限:** ADMIN",
+        "operationId": "updateRole",
+        "parameters": [
+          {
+            "name": "roleId",
+            "in": "path",
+            "description": "ロールID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRoleRequestDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "更新成功",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "バリデーションエラー"
+          },
+          "401": {
+            "description": "認証エラー"
+          },
+          "403": {
+            "description": "権限不足"
+          },
+          "404": {
+            "description": "ロールが存在しない"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/admin/roles/permissions/grouped": {
+      "get": {
+        "tags": [
+          "Admin Roles"
+        ],
+        "summary": "権限グループ別取得",
+        "description": "全権限をリソース種別ごとにグループ化して取得します。ロール権限編集 UI 用。\n\n**権限:** ADMIN",
+        "operationId": "getGroupedPermissions",
+        "responses": {
+          "200": {
+            "description": "取得成功",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "認証エラー"
+          },
+          "403": {
+            "description": "権限不足"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/admin/users": {
+      "get": {
+        "tags": [
+          "Admin Users"
+        ],
+        "summary": "ユーザー一覧取得（フィルタ付き）",
+        "description": "テナント内のユーザー一覧をフィルタ・ページネーション付きで取得します。\n\n**権限:** ADMIN",
+        "operationId": "listAdminUsers",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "ページ番号（0始まり）",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "description": "1ページあたり件数",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 20
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "description": "氏名 / email 部分一致検索",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "ステータスフィルタ（active / inactive）",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "取得成功",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserPageResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "認証エラー"
+          },
+          "403": {
+            "description": "権限不足"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Admin Users"
+        ],
+        "summary": "ユーザー作成",
+        "description": "テナント内にユーザーを作成します。\n\n**権限:** ADMIN",
+        "operationId": "createAdminUser",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUserRequestDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "作成成功",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "バリデーションエラー"
+          },
+          "401": {
+            "description": "認証エラー"
+          },
+          "403": {
+            "description": "権限不足"
+          },
+          "409": {
+            "description": "email 重複"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/admin/users/{userId}": {
+      "put": {
+        "tags": [
+          "Admin Users"
+        ],
+        "summary": "ユーザー更新",
+        "description": "ユーザー情報（氏名・ロール・有効状態等）を更新します。\n\n**権限:** ADMIN",
+        "operationId": "updateAdminUser",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "description": "ユーザーID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUserRequestDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "更新成功",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "バリデーションエラー"
+          },
+          "401": {
+            "description": "認証エラー"
+          },
+          "403": {
+            "description": "権限不足"
+          },
+          "404": {
+            "description": "ユーザーが存在しない"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/admin/users/{userId}/reset-password": {
+      "post": {
+        "tags": [
+          "Admin Users"
+        ],
+        "summary": "パスワードリセット",
+        "description": "対象ユーザーのパスワードリセットを開始します。\n\n**権限:** ADMIN",
+        "operationId": "resetUserPassword",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "description": "ユーザーID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "リセット開始成功"
+          },
+          "401": {
+            "description": "認証エラー"
+          },
+          "403": {
+            "description": "権限不足"
+          },
+          "404": {
+            "description": "ユーザーが存在しない"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/admin/users/invite": {
+      "post": {
+        "tags": [
+          "Admin Users"
+        ],
+        "summary": "ユーザー招待",
+        "description": "メールアドレスを指定してユーザーを招待します。\n\n**権限:** ADMIN",
+        "operationId": "inviteUser",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InviteUserRequestDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "招待成功",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "バリデーションエラー"
+          },
+          "401": {
+            "description": "認証エラー"
+          },
+          "403": {
+            "description": "権限不足"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/admin/users/bulk-invite": {
+      "post": {
+        "tags": [
+          "Admin Users"
+        ],
+        "summary": "ユーザー一括招待",
+        "description": "複数ユーザーを一括招待します（部分成功をサポート）。\n\n**権限:** ADMIN",
+        "operationId": "bulkInviteUsers",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkInviteRequestDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "一括招待結果",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkInviteResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "バリデーションエラー"
+          },
+          "401": {
+            "description": "認証エラー"
+          },
+          "403": {
+            "description": "権限不足"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/admin/users/invitations": {
+      "get": {
+        "tags": [
+          "Admin Users"
+        ],
+        "summary": "招待一覧取得",
+        "description": "テナント内の招待一覧を取得します。\n\n**権限:** ADMIN",
+        "operationId": "listInvitations",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "description": "招待ステータスフィルタ（PENDING / ACCEPTED / EXPIRED）",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "取得成功",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationListResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "認証エラー"
+          },
+          "403": {
+            "description": "権限不足"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/admin/script-rules": {
+      "post": {
+        "tags": [
+          "Script Rules"
+        ],
+        "summary": "ルール作成",
+        "description": "スクリプトルールを作成します。\n\n**権限:** ADMIN",
+        "operationId": "createScriptRule",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateScriptRuleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "作成成功",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScriptRuleResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "バリデーションエラー"
+          },
+          "401": {
+            "description": "認証エラー"
+          },
+          "403": {
+            "description": "権限不足"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "get": {
+        "tags": [
+          "Script Rules"
+        ],
+        "summary": "ルール一覧取得",
+        "description": "スクリプトルール一覧を取得します。\n\n**権限:** ADMIN",
+        "operationId": "listScriptRules",
+        "parameters": [
+          {
+            "name": "formId",
+            "in": "query",
+            "description": "対象データベースIDでフィルタ",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "triggerType",
+            "in": "query",
+            "description": "トリガー種別でフィルタ",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "取得成功",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScriptRuleListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "認証エラー"
+          },
+          "403": {
+            "description": "権限不足"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/admin/script-rules/{ruleId}": {
+      "put": {
+        "tags": [
+          "Script Rules"
+        ],
+        "summary": "ルール更新",
+        "description": "スクリプトルールを更新します。\n\n**権限:** ADMIN",
+        "operationId": "updateScriptRule",
+        "parameters": [
+          {
+            "name": "ruleId",
+            "in": "path",
+            "description": "ルールID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateScriptRuleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "更新成功",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScriptRuleResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "バリデーションエラー"
+          },
+          "401": {
+            "description": "認証エラー"
+          },
+          "403": {
+            "description": "権限不足"
+          },
+          "404": {
+            "description": "ルールが存在しない"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/admin/script-rules/{ruleId}/execute": {
+      "post": {
+        "tags": [
+          "Script Rules"
+        ],
+        "summary": "ルールテスト実行",
+        "description": "指定ルールをテスト実行し、結果を返します（保存は行いません）。\n\n**権限:** ADMIN",
+        "operationId": "executeScriptRule",
+        "parameters": [
+          {
+            "name": "ruleId",
+            "in": "path",
+            "description": "ルールID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExecuteScriptRuleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "実行結果",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "バリデーションエラー"
+          },
+          "401": {
+            "description": "認証エラー"
+          },
+          "403": {
+            "description": "権限不足"
+          },
+          "404": {
+            "description": "ルールが存在しない"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/admin/script-rules/test": {
+      "post": {
+        "tags": [
+          "Script Rules"
+        ],
+        "summary": "テストスクリプト実行",
+        "description": "保存されていない任意のスクリプトをテスト実行します。スクリプトエディタのテスト機能用。\n\n**権限:** ADMIN",
+        "operationId": "testScript",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "実行結果",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "バリデーションエラー"
+          },
+          "401": {
+            "description": "認証エラー"
+          },
+          "403": {
+            "description": "権限不足"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/answers/{answerId}/nodes/bulk": {
+      "post": {
+        "tags": [
+          "Nodes"
+        ],
+        "summary": "ノード一括作成",
+        "description": "\n            複数のノードを一括で作成します。children を指定することで階層構造を1リクエストで構築可能。\n\n            **制約:**\n            - 合計ノード数（children 含む）: 最大500件\n            - ネスト深度: 最大3\n            - 部分成功: 各トップレベルノードは独立して処理。子は親の成功に依存。\n\n            **権限:** USER または ADMIN（FORM_ANSWER:WRITE + BUSINESS_ACCESS）\n        ",
+        "operationId": "bulkCreateNodes",
+        "parameters": [
+          {
+            "name": "answerId",
+            "in": "path",
+            "description": "回答ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "formId",
+            "in": "query",
+            "description": "フォームID（推奨）",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkCreateNodesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "一括作成完了（部分成功を含む）",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "バリデーションエラー"
+          },
+          "401": {
+            "description": "認証エラー"
+          },
+          "403": {
+            "description": "権限不足"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/answers/{answerId}/nodes/cleanup-ghosts": {
+      "post": {
+        "tags": [
+          "Nodes"
+        ],
+        "summary": "ゴースト子ノード検出・削除（ADMIN専用）",
+        "description": "\n            回答データから参照されていないのにノードテーブルに残っているゴースト子ノードを検出・削除します。\n\n            **動作モード:**\n            - dryRun=true（デフォルト）: 検出のみ。削除は行わない。\n            - dryRun=false: 検出したゴーストノードを削除する。\n\n            **権限:** ADMIN\n        ",
+        "operationId": "cleanupGhostChildNodes",
+        "parameters": [
+          {
+            "name": "answerId",
+            "in": "path",
+            "description": "回答ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "formId",
+            "in": "query",
+            "description": "フォームID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "dryRun",
+            "in": "query",
+            "description": "dry run モード（デフォルト: true）",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "検出・削除完了",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "パラメータ不正"
+          },
+          "401": {
+            "description": "認証エラー"
+          },
+          "403": {
+            "description": "権限不足（ADMIN権限が必要）"
+          },
+          "404": {
+            "description": "回答が存在しない"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/answers/bulk-nodes": {
+      "post": {
+        "tags": [
+          "Bulk Nodes"
+        ],
+        "summary": "複数answerIdのノードを一括取得",
+        "description": "\n            複数の回答IDに属するノードを1回のAPIコールで取得します。\n            各 answerId ごとに独立して処理され、1件の失敗が全体をブロックしません。\n\n            **パラメータ:**\n            - answerIds: 取得対象の回答IDリスト（1〜500件、必須）\n            - depth: 階層フィルタ（任意）\n            - fieldCode: ARRAYフィールドフィルタ（任意）\n\n            **権限:** USER または ADMIN\n        ",
+        "operationId": "getBulkNodes",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkNodesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "取得成功（部分エラーを含む場合あり）",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "バリデーションエラー（answerIdsが空または500件超過）"
+          },
+          "401": {
+            "description": "認証エラー"
+          },
+          "403": {
+            "description": "権限不足"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/forms/{formId}/answers/rebuild-index": {
+      "post": {
+        "tags": [
+          "Form Answers"
+        ],
+        "summary": "Projection Table再構築",
+        "description": "\n            全回答の Projection Table インデックスを再構築します。\n            REFERENCE / USER フィールドの displayValue 更新時などに使用。\n\n            **権限:** FORM_ANSWER:WRITE + BUSINESS_ACCESS権限\n        ",
+        "operationId": "rebuildIndex",
+        "parameters": [
+          {
+            "name": "formId",
+            "in": "path",
+            "description": "データベースID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "再構築成功",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "認証エラー"
+          },
+          "403": {
+            "description": "権限不足"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/forms/ai-create": {
+      "post": {
+        "tags": [
+          "Forms"
+        ],
+        "summary": "AIデータベース自動生成（SSE）",
+        "description": "\n            自然言語の要件から AI がデータベーススキーマを自動生成します。\n            進捗は Server-Sent Events（SSE）でリアルタイム配信されます。\n\n            **権限:** FORM_DEFINITION:WRITE\n        ",
+        "operationId": "createFormWithAI",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AIFormCreationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "SSEストリーム開始",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "認証エラー"
+          },
+          "403": {
+            "description": "権限不足"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/forms/ai-create-job": {
+      "post": {
+        "tags": [
+          "Forms"
+        ],
+        "summary": "AIデータベース自動生成（バックグラウンドジョブ）",
+        "description": "\n            バックグラウンドで AI データベース生成を実行します。ジョブIDを返し、進捗は別エンドポイントで確認します。\n\n            **権限:** FORM_DEFINITION:WRITE\n        ",
+        "operationId": "createFormWithAIJob",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AIFormCreationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "ジョブ作成成功",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateJobResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "認証エラー"
+          },
+          "403": {
+            "description": "権限不足"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/forms/ai-jobs": {
+      "get": {
+        "tags": [
+          "Forms"
+        ],
+        "summary": "AIジョブ一覧取得",
+        "description": "ログインユーザーの AI データベース生成ジョブ一覧を取得します。\n\n**権限:** 認証済み",
+        "operationId": "getUserAIFormJobs",
+        "responses": {
+          "200": {
+            "description": "取得成功",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AIFormJobResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "認証エラー"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/forms/ai-jobs/{jobId}": {
+      "get": {
+        "tags": [
+          "Forms"
+        ],
+        "summary": "AIジョブステータス取得",
+        "description": "AI データベース生成ジョブの状態を取得します。\n\n**権限:** 認証済み",
+        "operationId": "getAIFormJobStatus",
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "description": "ジョブID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "取得成功",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AIFormJobResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "ジョブが存在しない"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Forms"
+        ],
+        "summary": "AIジョブキャンセル",
+        "description": "AI データベース生成ジョブをキャンセルします。\n\n**権限:** 認証済み",
+        "operationId": "cancelAIFormJob",
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "description": "ジョブID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "キャンセル成功",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "キャンセル不可（完了済み等）"
+          },
+          "404": {
+            "description": "ジョブが存在しない"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/mail/usage/all": {
+      "get": {
+        "tags": [
+          "Mail"
+        ],
+        "summary": "全テナントメール月次使用量取得",
+        "description": "\n            全テナントのメール送信月次使用量を取得します。\n\n            **権限:** SUPER_ADMIN\n        ",
+        "operationId": "getAllMailUsage",
+        "parameters": [
+          {
+            "name": "month",
+            "in": "query",
+            "description": "対象月（yyyy-MM形式、省略時は当月）",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "2026-03"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "使用量取得成功",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MailUsageResponseDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "認証エラー"
+          },
+          "403": {
+            "description": "権限不足"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/ai/health": {
+      "get": {
+        "tags": [
+          "AI Agent"
+        ],
+        "summary": "AI Agent ヘルスチェック",
+        "description": "AI エージェントランタイムのヘルスチェックを行います。\n\n**権限:** 認証済み",
+        "operationId": "aiHealth",
+        "responses": {
+          "200": {
+            "description": "正常",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "AI エージェントランタイムが利用不可",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/public/forms/{token}": {
+      "get": {
+        "tags": [
+          "Public Forms"
+        ],
+        "summary": "公開フォーム定義取得",
+        "description": "公開トークンからフォーム定義を取得します（認証不要）。\n\n**権限:** なし（公開エンドポイント）",
+        "operationId": "getPublicForm",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "description": "公開フォームトークン",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "取得成功",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicFormDefinitionResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "無効または期限切れトークン"
+          },
+          "410": {
+            "description": "フォームの受付が終了している"
+          }
+        }
+      }
+    },
+    "/api/public/forms/{token}/answers": {
+      "post": {
+        "tags": [
+          "Public Forms"
+        ],
+        "summary": "公開フォーム回答送信",
+        "description": "公開トークンを指定してフォーム回答を送信します（認証不要・外部ユーザー向け）。\n\n**権限:** なし（公開エンドポイント）",
+        "operationId": "createPublicAnswer",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "description": "公開フォームトークン",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePublicAnswerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "回答送信成功",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicAnswerResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "バリデーションエラー",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicAnswerResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "無効または期限切れトークン"
+          },
+          "410": {
+            "description": "フォームの受付が終了している"
+          }
+        }
+      }
+    },
+    "/api/signup": {
+      "post": {
+        "tags": [
+          "Signup"
+        ],
+        "summary": "サインアップ申込",
+        "description": "企業情報を指定してサインアップ申込を送信します（認証不要）。受付番号を返します。\n\n**権限:** なし（公開エンドポイント）",
+        "operationId": "submitSignup",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignupRequestDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "申込成功",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignupResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "バリデーションエラー"
+          },
+          "500": {
+            "description": "申込処理エラー"
+          }
+        }
+      }
+    },
+    "/api/v1/users/lookup": {
+      "post": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "ユーザー一括解決",
+        "description": "\n            指定された userId リストから displayName / username / email を一括取得します。\n            メンション表示などの displayName 解決に使用。テナント外 / 存在しない ID は除外されます。\n\n            **権限:** 認証済みユーザー\n            **上限:** 200 IDs / request\n        ",
+        "operationId": "lookupUsers",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserLookupRequestDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "取得成功",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "$ref": "#/components/schemas/UserSummaryDto"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "userIds が空 / 上限超過"
+          },
+          "401": {
+            "description": "認証エラー"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/users/mentionable": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "メンション候補ユーザー検索",
+        "description": "\n            指定されたデータベースのレコード閲覧権限を持つテナント内ユーザーを返します。\n            メンション（@）サジェスト候補に使用。\n\n            **権限:** 認証済みユーザー + 対象 form の閲覧権限\n        ",
+        "operationId": "searchMentionable",
+        "parameters": [
+          {
+            "name": "formId",
+            "in": "query",
+            "description": "対象データベース ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "description": "名前 / email の部分一致クエリ",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "最大件数 (default 20, max 50)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "取得成功",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/UserSummaryDto"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "formId 未指定"
+          },
+          "401": {
+            "description": "認証エラー"
+          },
+          "403": {
+            "description": "呼出元が formId の閲覧権限を持たない"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -11212,6 +13272,721 @@
           "userId": {
             "type": "string",
             "format": "uuid"
+          }
+        }
+      },
+      "CompileScreenRequest": {
+        "type": "object",
+        "description": "画面コンパイルリクエスト",
+        "properties": {
+          "sourceCode": {
+            "type": "string",
+            "nullable": true,
+            "description": "単一ファイル画面のソースコード"
+          },
+          "files": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "nullable": true,
+            "description": "マルチファイル画面のファイルマップ（パス→内容）"
+          },
+          "entryPoint": {
+            "type": "string",
+            "nullable": true,
+            "description": "エントリポイントファイルパス"
+          }
+        }
+      },
+      "ScreenCompileErrorDTO": {
+        "type": "object",
+        "properties": {
+          "line": {
+            "type": "integer"
+          },
+          "column": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          }
+        }
+      },
+      "CompileScreenResponse": {
+        "type": "object",
+        "description": "画面コンパイル結果",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "compiledCodePreview": {
+            "type": "string",
+            "nullable": true
+          },
+          "compiledCodeSize": {
+            "type": "integer",
+            "nullable": true
+          },
+          "compiledCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScreenCompileErrorDTO"
+            },
+            "nullable": true
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScreenCompileErrorDTO"
+            },
+            "nullable": true
+          }
+        }
+      },
+      "MoveScreenRequest": {
+        "type": "object",
+        "description": "画面フォルダ移動リクエスト",
+        "required": [
+          "folderPath"
+        ],
+        "properties": {
+          "folderPath": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "移動先フォルダパス（例: /顧客管理/ダッシュボード）"
+          }
+        }
+      },
+      "ScreenPermissionCheckResponse": {
+        "type": "object",
+        "properties": {
+          "screenId": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "canView": {
+            "type": "boolean"
+          },
+          "canEdit": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ScreenPermissionDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string"
+          },
+          "userName": {
+            "type": "string",
+            "nullable": true
+          },
+          "screenId": {
+            "type": "string"
+          },
+          "screenName": {
+            "type": "string",
+            "nullable": true
+          },
+          "permissionType": {
+            "type": "string",
+            "description": "VIEW / EDIT"
+          },
+          "grantedBy": {
+            "type": "string"
+          },
+          "grantedByName": {
+            "type": "string",
+            "nullable": true
+          },
+          "grantedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "nullable": true
+          }
+        }
+      },
+      "FolderPermissionDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string"
+          },
+          "userName": {
+            "type": "string",
+            "nullable": true
+          },
+          "folderPath": {
+            "type": "string"
+          },
+          "permissionType": {
+            "type": "string",
+            "description": "VIEW / EDIT"
+          },
+          "grantedBy": {
+            "type": "string"
+          },
+          "grantedByName": {
+            "type": "string",
+            "nullable": true
+          },
+          "grantedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "nullable": true
+          }
+        }
+      },
+      "GrantScreenPermissionRequest": {
+        "type": "object",
+        "required": [
+          "userId",
+          "screenId",
+          "permissionType"
+        ],
+        "properties": {
+          "userId": {
+            "type": "string",
+            "description": "対象ユーザーID（UUID）"
+          },
+          "screenId": {
+            "type": "string"
+          },
+          "permissionType": {
+            "type": "string",
+            "description": "VIEW / EDIT"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "nullable": true
+          }
+        }
+      },
+      "RevokeScreenPermissionRequest": {
+        "type": "object",
+        "required": [
+          "userId",
+          "screenId",
+          "permissionType"
+        ],
+        "properties": {
+          "userId": {
+            "type": "string"
+          },
+          "screenId": {
+            "type": "string"
+          },
+          "permissionType": {
+            "type": "string"
+          }
+        }
+      },
+      "GrantFolderPermissionRequest": {
+        "type": "object",
+        "required": [
+          "userId",
+          "folderPath",
+          "permissionType"
+        ],
+        "properties": {
+          "userId": {
+            "type": "string"
+          },
+          "folderPath": {
+            "type": "string"
+          },
+          "permissionType": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "nullable": true
+          }
+        }
+      },
+      "RevokeFolderPermissionRequest": {
+        "type": "object",
+        "required": [
+          "userId",
+          "folderPath",
+          "permissionType"
+        ],
+        "properties": {
+          "userId": {
+            "type": "string"
+          },
+          "folderPath": {
+            "type": "string"
+          },
+          "permissionType": {
+            "type": "string"
+          }
+        }
+      },
+      "BulkNodesRequest": {
+        "type": "object",
+        "description": "複数 answerId のノード一括取得リクエスト",
+        "required": [
+          "answerIds"
+        ],
+        "properties": {
+          "answerIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "maxItems": 500,
+            "description": "取得対象の回答IDリスト（1〜500件）"
+          },
+          "depth": {
+            "type": "integer",
+            "nullable": true,
+            "description": "階層フィルタ（任意）"
+          },
+          "fieldCode": {
+            "type": "string",
+            "nullable": true,
+            "description": "ARRAYフィールドフィルタ（任意）"
+          }
+        }
+      },
+      "BulkCreateNodesRequest": {
+        "type": "object",
+        "description": "ノード一括作成リクエスト",
+        "required": [
+          "nodes"
+        ],
+        "properties": {
+          "nodes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "minItems": 1,
+            "maxItems": 500,
+            "description": "作成するノードのリスト（children 含む合計500件まで）"
+          },
+          "originUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "発信元 URL。メンションを含む場合は必須。"
+          }
+        }
+      },
+      "BulkPatchRequest": {
+        "type": "object",
+        "description": "回答一括差分更新リクエスト",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "answerId",
+                "operations"
+              ],
+              "properties": {
+                "answerId": {
+                  "type": "string",
+                  "description": "回答ID"
+                },
+                "expectedVersion": {
+                  "type": "integer",
+                  "format": "int64",
+                  "nullable": true,
+                  "description": "楽観ロック用バージョン"
+                },
+                "operations": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "description": "JSON Patch 風の差分操作リスト"
+                },
+                "originUrl": {
+                  "type": "string",
+                  "nullable": true
+                }
+              }
+            },
+            "minItems": 1,
+            "maxItems": 500,
+            "description": "差分更新する回答リスト（最大500件）"
+          }
+        }
+      },
+      "AIFormCreationRequest": {
+        "type": "object",
+        "description": "AIデータベース作成リクエスト",
+        "required": [
+          "intent"
+        ],
+        "properties": {
+          "intent": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 10000,
+            "description": "ユーザーの意図・要件（自然言語）"
+          },
+          "existingFormId": {
+            "type": "string",
+            "nullable": true,
+            "description": "既存データベースID（編集モードの場合に指定）"
+          },
+          "language": {
+            "type": "string",
+            "default": "ja",
+            "description": "生成言語"
+          },
+          "context": {
+            "type": "object",
+            "additionalProperties": true,
+            "nullable": true
+          },
+          "image": {
+            "type": "string",
+            "nullable": true,
+            "description": "添付画像（base64 等）"
+          }
+        }
+      },
+      "AIFormJobResponse": {
+        "type": "object",
+        "description": "AIデータベース生成ジョブ状態",
+        "properties": {
+          "jobId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "intent": {
+            "type": "string"
+          },
+          "progressMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "progressPercentage": {
+            "type": "integer",
+            "default": 0
+          },
+          "generatedFormId": {
+            "type": "string",
+            "nullable": true
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "MailUsageResponseDto": {
+        "type": "object",
+        "description": "メール月次使用量",
+        "properties": {
+          "tenantCode": {
+            "type": "string"
+          },
+          "month": {
+            "type": "string",
+            "description": "yyyy-MM"
+          },
+          "sentCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "failedCount": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "PublicSettingsResponse": {
+        "type": "object",
+        "properties": {
+          "confirmationMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "PublicFormDefinitionResponse": {
+        "type": "object",
+        "description": "公開フォーム定義レスポンス",
+        "properties": {
+          "formId": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "schema": {
+            "type": "object",
+            "additionalProperties": true,
+            "nullable": true
+          },
+          "isPublic": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "publicSettings": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PublicSettingsResponse"
+              }
+            ],
+            "nullable": true
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "CreatePublicAnswerRequest": {
+        "type": "object",
+        "description": "公開フォーム回答送信リクエスト",
+        "required": [
+          "answers"
+        ],
+        "properties": {
+          "answers": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "回答データ"
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true,
+            "nullable": true
+          }
+        }
+      },
+      "PublicAnswerFieldError": {
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "PublicAnswerResponse": {
+        "type": "object",
+        "description": "公開フォーム回答送信レスポンス",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "default": false
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "answerId": {
+            "type": "string",
+            "nullable": true
+          },
+          "confirmationMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicAnswerFieldError"
+            },
+            "nullable": true
+          }
+        }
+      },
+      "SignupRequestDto": {
+        "type": "object",
+        "description": "サインアップ申込リクエスト",
+        "required": [
+          "companyName",
+          "contactName",
+          "email",
+          "billingEmail",
+          "companyAddress",
+          "requestType",
+          "agreedToTerms",
+          "agreedToPrivacy",
+          "agreedToLegalNotice",
+          "status"
+        ],
+        "properties": {
+          "companyName": {
+            "type": "string"
+          },
+          "contactName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "billingEmail": {
+            "type": "string"
+          },
+          "companyAddress": {
+            "type": "string"
+          },
+          "requestType": {
+            "type": "string",
+            "description": "demo / environment"
+          },
+          "referralSource": {
+            "type": "string",
+            "nullable": true
+          },
+          "referrerName": {
+            "type": "string",
+            "nullable": true
+          },
+          "representativeTitle": {
+            "type": "string",
+            "nullable": true
+          },
+          "representativeName": {
+            "type": "string",
+            "nullable": true
+          },
+          "agreedToTerms": {
+            "type": "boolean"
+          },
+          "agreedToPrivacy": {
+            "type": "boolean"
+          },
+          "agreedToLegalNotice": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "SignupResponseDto": {
+        "type": "object",
+        "description": "サインアップ申込レスポンス",
+        "properties": {
+          "signupId": {
+            "type": "string"
+          },
+          "receiptNumber": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        }
+      },
+      "UserLookupRequestDto": {
+        "type": "object",
+        "description": "ユーザー一括解決リクエスト",
+        "required": [
+          "userIds"
+        ],
+        "properties": {
+          "userIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 200,
+            "description": "解決対象の userId リスト（最大200件）"
           }
         }
       }
