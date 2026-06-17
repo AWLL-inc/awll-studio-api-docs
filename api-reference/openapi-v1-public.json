@@ -7220,7 +7220,7 @@
           "AI DB Chat"
         ],
         "summary": "自分の DB作成チャット会話一覧を取得",
-        "description": "ログインユーザーの DynamoDB 永続化済み会話サマリー一覧を返す。",
+        "description": "ログインユーザーの永続化済み会話サマリー一覧を返す。",
         "security": [
           {
             "bearerAuth": []

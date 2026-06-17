@@ -529,9 +529,8 @@ DB Error    ErrorPayload         AwllError           normalizeError    AwllError
 
 ### Backend → Host 変換例
 
-```kotlin
-// Backend
-throw ValidationException("名前は必須です", field = "name")
+```
+// Backend がバリデーションエラーを送出（例: field="name", message="名前は必須です"）
 
 // ↓ Host messageHandlerで変換
 

@@ -875,7 +875,7 @@ X-Tenant-Code: <tenant_code>
 ### 制約
 
 - `answerIds` は最大500件
-- テナント分離は `TenantContext` + DynamoDB PKプレフィックスで保証
+- テナント分離はプラットフォーム側で保証
 - 存在しないanswerIdは `results` に空の `items: []` で返却（エラーではない）
 
 ---

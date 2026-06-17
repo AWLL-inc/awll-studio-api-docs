@@ -392,7 +392,7 @@ const filesValue = record.values.receipts; // FileMetadata[] | null
 
 `FileMetadata` の構造は [useFileUpload](#usefileupload) セクションを参照してください。
 
-> ⚠️ **重要**: `FileMetadata.key` はS3オブジェクトキーであり、**URLではありません**。画像表示やダウンロードには `useFileUpload().downloadFile(key)` で署名付きURLを取得してください。
+> ⚠️ **重要**: `FileMetadata.key` はオブジェクトキーであり、**URLではありません**。画像表示やダウンロードには `useFileUpload().downloadFile(key)` で署名付きURLを取得してください。
 
 ```tsx
 // ✅ 正しい: downloadFileで署名付きURLを取得して表示
@@ -2033,7 +2033,7 @@ function useFileUpload(): {
 
 ### uploadFile(file, options?)
 
-ファイルをS3にアップロードし、メタデータを返します。内部でFileをBase64に変換してpostMessage経由で送信し、presigned PUT URLを取得してS3に直接PUTします。
+ファイルをストレージにアップロードし、メタデータを返します。内部でFileをBase64に変換してpostMessage経由で送信し、presigned PUT URLを取得してストレージに直接PUTします。
 
 ```tsx
 const { uploadFile } = useFileUpload();
@@ -2048,7 +2048,7 @@ const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     answerId: 'ANSWER_ID',     // オプション: レコードID
   });
 
-  console.log(metadata.key);        // S3オブジェクトキー
+  console.log(metadata.key);        // オブジェクトキー
   console.log(metadata.fileName);   // ファイル名
   console.log(metadata.mimeType);   // MIME タイプ
   console.log(metadata.size);       // ファイルサイズ（バイト）
@@ -2069,7 +2069,7 @@ const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
 
 ```typescript
 interface FileMetadata {
-  key: string;           // S3オブジェクトキー（ダウンロード・削除時に使用）
+  key: string;           // オブジェクトキー（ダウンロード・削除時に使用）
   fileName: string;      // ファイル名
   mimeType: string;      // MIME タイプ
   size: number;          // ファイルサイズ（バイト）
@@ -2085,7 +2085,7 @@ interface FileMetadata {
 
 ### downloadFile(key, forceDownload?)
 
-S3のファイルの署名付きURL（15分有効）を取得します。
+ストレージのファイルの署名付きURL（15分有効）を取得します。
 
 ```tsx
 const { downloadFile } = useFileUpload();
@@ -2100,7 +2100,7 @@ const { url } = await downloadFile(fileKey, false);  // forceDownload=false
 
 | パラメータ | 型 | 必須 | 説明 |
 |-----------|-----|------|------|
-| `key` | `string` | Yes | S3オブジェクトキー（`uploadFile` の戻り値 `.key`） |
+| `key` | `string` | Yes | オブジェクトキー（`uploadFile` の戻り値 `.key`） |
 | `forceDownload` | `boolean` | No | `true`（デフォルト）: 新規タブで開く + `Content-Disposition: attachment`。`false`: URLのみ返却 + `Content-Disposition: inline`（プレビュー用） |
 
 **戻り値**: `Promise<{ url: string }>` — 署名付きURL（15分有効）
@@ -2111,7 +2111,7 @@ const { url } = await downloadFile(fileKey, false);  // forceDownload=false
 
 ### deleteFile(key)
 
-S3上のファイルを削除します。削除後はレコード側でもファイルフィールドを `null` に更新してください。
+ストレージ上のファイルを削除します。削除後はレコード側でもファイルフィールドを `null` に更新してください。
 
 ```tsx
 const { deleteFile } = useFileUpload();
@@ -2129,7 +2129,7 @@ const handleDelete = async () => {
 
 | パラメータ | 型 | 必須 | 説明 |
 |-----------|-----|------|------|
-| `key` | `string` | Yes | S3オブジェクトキー |
+| `key` | `string` | Yes | オブジェクトキー |
 
 **戻り値**: `Promise<{ success: boolean }>`
 
@@ -2197,14 +2197,14 @@ export default function FileUploadDemo() {
 1. **Base64変換**: iframe内でFileオブジェクトを直接postMessageで送信できないため、内部でBase64に変換しています。100MBを超えるファイルはメモリ制約でエラーになる可能性があります。
 2. **ファイル名サニタイズ**: バックエンド側でパストラバーサル・Content-Dispositionインジェクション防止のサニタイズが自動適用されます。
 3. **暗号化**: アップロードされたファイルはAWS KMSで自動暗号化されます。
-4. **テナント分離**: S3キーの `tenants/{tenantCode}/` プレフィックスにより、テナント間のファイルアクセスは自動的にブロックされます。
+4. **テナント分離**: オブジェクトキーの `tenants/{tenantCode}/` プレフィックスにより、テナント間のファイルアクセスは自動的にブロックされます。
 5. **権限**: アップロードには `FORM_ANSWER:WRITE`、ダウンロードには `FORM_ANSWER:READ` 権限が必要です。
 
 ### 画像のインライン表示（img タグ）
 
 FILE型フィールドの画像を画面内で `<img>` タグとして表示するには、`downloadFile()` で署名付きURLを取得して使用します。
 
-> ✅ **CSP対応済み**: iframe内のCSPは `img-src 'self' data: blob: https://*.amazonaws.com` を許可しているため、S3署名付きURLの画像を直接表示できます。
+> ✅ **CSP対応済み**: iframe内のCSPは `img-src 'self' data: blob: https://*.storage.example.com` を許可しているため、署名付きURLの画像を直接表示できます。
 
 #### 単一ファイルの画像プレビュー
 
