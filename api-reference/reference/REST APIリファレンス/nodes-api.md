@@ -35,15 +35,16 @@
 ### 5. PUT /nodes/{rowId} はシャローマージ（部分更新対応）
 
 - Nodes API の PUT は**シャローマージ**。送信フィールドのみ上書きされ、未送信フィールドは既存値が保持される
-- 例: `name` と `category` を持つノードで `monthly_sales` だけ送ると、`name` と `category` は保持される
+- 例: `name` と `category` を持つノードで `category` だけ送ると、`name` は保持される
 - `{ "field": null }` で明示的にnullクリアも可能
+- ⚠️ 送信できるのは**フラットフィールドのみ**。ARRAY型（サブテーブル）フィールドの配列を `data` に含めてはいけない（下記「🚨 CRITICAL」参照。幽霊データになる）
 
 ```json
-// OK: monthly_salesだけ送ってもnameとcategoryは保持される
-{ "data": { "monthly_sales": [...] } }
+// OK: categoryだけ送ってもnameは保持される（フラットフィールド）
+{ "data": { "category": "awll_studio" } }
 
-// OK: 全フィールドを含めても問題なし
-{ "data": { "name": "JFS", "category": "awll_studio", "monthly_sales": [...] } }
+// OK: フラットフィールドは全て含めても問題なし
+{ "data": { "name": "JFS", "category": "awll_studio" } }
 ```
 
 ### 6. 大量ネストデータの更新で 504 Gateway Timeout が発生する場合がある
