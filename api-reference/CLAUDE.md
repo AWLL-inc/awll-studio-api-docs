@@ -209,12 +209,28 @@ GET /api/answers/{answerId}/nodes?ancestorRowId={rowId}
 # parentRowId と ancestorRowId は排他（両方指定すると400エラー）
 ```
 
-## 画面(Screen)作成時の注意
+## 画面(Screen)作成・公開フロー（最重要）
 
-- `POST /api/v1/screens` でソースコードをアップロード可能
-- コンパイル: `POST /api/v1/screens/{screenId}/compile` でソースコードをコンパイル
-- デプロイ: `POST /api/v1/screens/{screenId}/deploy` でCDNにデプロイ
-- ロールバック: `POST /api/v1/screens/{screenId}/rollback` で指定バージョンに戻す
+> ⚠️ **画面はコンパイル → デプロイしないとビジネスユーザーに表示されません。**
+> `POST /api/v1/screens`（作成）だけでは画面は **DRAFT** のままで、誰にも見えません。
+> ソースコードをアップロードした後、**必ず deploy まで実行してください。作成しただけで終わらせないこと。**
+
+### 必須手順
+
+1. **作成 / 更新**: `POST /api/v1/screens`（新規）または `PUT /api/v1/screens/{screenId}`（更新）でソースコードをアップロード
+2. **デプロイ（必須）**: `POST /api/v1/screens/{screenId}/deploy`
+   - これを実行して初めて、**コンパイル → CDN配信 → 公開（PUBLISHED）** が完了する
+   - `deploy` は compiledCode 未生成時に **自動でコンパイル** するため、`compile` の事前実行は省略可
+3. （任意）ロールバック: `POST /api/v1/screens/{screenId}/rollback` で指定バージョンに戻す
+
+| エンドポイント | 役割 | ユーザーへの反映 |
+|---------------|------|:--:|
+| `POST /api/v1/screens/{screenId}/compile` | ソースコードをコンパイル（保存のみ） | ❌ |
+| `POST /api/v1/screens/{screenId}/deploy` | **自動コンパイル → CDN配信 → 公開** | ✅ |
+
+> ❌ **よくある失敗**: 画面を作成（アップロード）しただけで完了とみなし、deploy を忘れる
+> → 画面はコンパイルされず、ビジネスユーザーには表示されないまま。**作成・更新したら必ず deploy する。**
+
 - ソースコードは `export default function ScreenName() { ... }` 形式
 - SDK import: `import { useRecords, useRecord, useMutation, useExecutionContext } from '@awll/sdk';`
 - iframe内で実行されるため `fetch()` での直接API呼び出しは認証トークンが付与されず401になる（画面コードから認証サービスのJWTにはアクセス不可）

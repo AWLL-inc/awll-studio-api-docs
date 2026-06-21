@@ -8,6 +8,12 @@
 
 AWLL Studioでは、管理画面（`/admin/screens`）でReact画面定義を作成することで、カスタム画面を自由に開発できます。本ドキュメントでは、画面開発のベストプラクティスと実装パターンを説明します。
 
+> ⚠️ **画面はコードを書いただけでは公開されません。必ず最後に `deployScreen`（= `POST /api/v1/screens/{screenId}/deploy`）まで実行してください。**
+> `createScreen` / `updateScreen` / `saveScreenFile` で保存した画面は **DRAFT** 状態で、ビジネスユーザーには表示されません。
+> `deployScreen` が **自動でコンパイル → CDN配信 → 公開** を行います（`compileScreen` の事前実行は省略可）。
+> 詳細は本ドキュメント末尾の [画面デプロイ（CDN配信）](#画面デプロイcdn配信) を参照。
+> **特に AI エージェント・CLI で画面を作る場合、「作成完了」で止めず deploy まで必ず実行すること。**
+
 ## 基本構成
 
 ### 最小限の画面定義
