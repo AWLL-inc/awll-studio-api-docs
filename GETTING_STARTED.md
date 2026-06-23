@@ -145,6 +145,7 @@ CLAUDE.md に Screen SDK のリファレンスを記載しているため、Clau
 |------|--------------|
 | データベース設計の詳細 (フィールド型・制約など) | [データベーススキーマ定義](./api-reference/database-schema.md) |
 | 画面コードをご自身で記述したい | [Screen SDK Reference](./sdk/screen-sdk-reference.md) / [画面開発ガイド](./sdk/screen-development.md) |
+| 1つの画面を複数ファイルで構成したい (マルチファイル画面) | [画面開発ガイド「マルチファイル画面開発」](./sdk/screen-development.md) / [Screens API](./api-reference/reference/REST%20APIリファレンス/screens-api.md) |
 | レコード作成・更新時のロジックを追加したい | [Script SDK Reference](./sdk/script-sdk-reference.md) / [スクリプト開発ガイド](./sdk/script-development.md) |
 | curl で API を直接呼び出したい | [クイックスタート (curl)](./api-reference/quick-start.md) / [API 概要](./api-reference/api-overview.md) |
 | Claude Code で繰り返し業務を自動化したい | [Playbook セットアップガイド](./playbook/setup-guide.md) / [週次運用サイクル](./playbook/weekly-workflow.md) |

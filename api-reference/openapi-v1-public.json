@@ -9890,6 +9890,28 @@
           "publishedVersion": {
             "type": "string"
           },
+          "isMultiFile": {
+            "type": "boolean",
+            "description": "マルチファイル画面かどうか。true=複数ファイル構成、false=単一ファイル（デフォルト）"
+          },
+          "entryPoint": {
+            "type": "string",
+            "description": "エントリーポイントファイルパス。マルチファイル画面のメインファイル",
+            "example": "App.tsx"
+          },
+          "fileManifest": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FileManifestEntry"
+            },
+            "nullable": true,
+            "description": "ファイル一覧メタデータ。マルチファイル画面でのみ設定される"
+          },
+          "sourceStorageUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "ソースファイルストレージのベースURL。マルチファイル画面でのみ設定される"
+          },
           "folderPath": {
             "type": "string",
             "description": "フォルダパス（デフォルト: /）"
@@ -12388,6 +12410,14 @@
           },
           "publishedVersionLabel": {
             "type": "string"
+          },
+          "isMultiFile": {
+            "type": "boolean",
+            "description": "マルチファイル画面かどうか"
+          },
+          "folderPath": {
+            "type": "string",
+            "description": "フォルダパス（デフォルト: /）"
           }
         },
         "required": [
@@ -13989,6 +14019,36 @@
             "description": "解決対象の userId リスト（最大200件）"
           }
         }
+      },
+      "FileManifestEntry": {
+        "type": "object",
+        "description": "ファイルマニフェストエントリ。マルチファイル画面のファイル一覧メタデータ",
+        "properties": {
+          "filePath": {
+            "type": "string",
+            "description": "ファイルパス"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "ファイルサイズ（バイト）"
+          },
+          "contentType": {
+            "type": "string",
+            "description": "コンテンツタイプ"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "最終更新日時"
+          }
+        },
+        "required": [
+          "filePath",
+          "size",
+          "contentType",
+          "updatedAt"
+        ]
       }
     },
     "securitySchemes": {

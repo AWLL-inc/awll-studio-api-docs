@@ -273,6 +273,8 @@
   publishedVersion: string | null;
   isMultiFile: boolean;           // マルチファイルモード
   entryPoint: string;             // エントリーポイント（デフォルト: "App.tsx"）
+  fileManifest: FileManifestEntry[] | null;  // ファイル一覧メタデータ（マルチファイル時のみ）
+  sourceStorageUrl: string | null;           // ソースファイルストレージのベースURL（マルチファイル時のみ）
   folderPath: string;             // フォルダパス（デフォルト: "/"）
   description: string | null;     // 画面仕様メモ（最大10,000文字）
 }
@@ -280,7 +282,7 @@
 
 ### ScreenSummaryDTO（一覧取得時）
 
-`ScreenDTO` から `sourceCode` / `compiledCode` を除外した軽量版。`folderPath` を含む。
+`ScreenDTO` から `sourceCode` / `compiledCode` を除外した軽量版。`isMultiFile` / `folderPath` を含む。
 
 ---
 
@@ -679,6 +681,19 @@
 }
 ```
 
+#### FileManifestEntry
+
+`ScreenDTO.fileManifest` の各要素。マルチファイル画面のファイル一覧メタデータ（ファイル本体はソースストレージに保存され、ここにはメタデータのみ保持）。
+
+```typescript
+{
+  filePath: string;       // ファイルパス（画面ルートからの相対パス）
+  size: number;           // ファイルサイズ（バイト）
+  contentType: string;    // コンテンツタイプ
+  updatedAt: datetime;    // 最終更新日時
+}
+```
+
 ---
 
-**更新日**: 2026-05-25
+**更新日**: 2026-06-23

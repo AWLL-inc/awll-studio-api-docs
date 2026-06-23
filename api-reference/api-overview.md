@@ -68,10 +68,24 @@
 | DELETE | `/api/v1/screens/{screenId}` | 画面を削除 |
 | GET | `/api/v1/screens/{screenId}/published` | 公開済み画面を取得 |
 | POST | `/api/v1/screens/{screenId}/publish` | 画面を公開 |
+| POST | `/api/v1/screens/{screenId}/compile` | ソースコードをコンパイル（デプロイ前に必須） |
 | POST | `/api/v1/screens/{screenId}/deploy` | 画面をデプロイ |
 | POST | `/api/v1/screens/{screenId}/rollback` | 前バージョンにロールバック |
 | GET | `/api/v1/screens/{screenId}/versions` | バージョン履歴を取得 |
 | GET | `/api/v1/screens/{screenId}/deployments` | デプロイ履歴を取得 |
+
+### 画面定義 — マルチファイル（Screen Files）
+
+1つの画面を複数ファイル（エントリーポイント + コンポーネント/フック等）で構成する場合に使用します。対象画面が**マルチファイルモード**（`isMultiFile: true`）であることが前提です。
+
+| Method | Path | 説明 |
+|--------|------|------|
+| POST | `/api/v1/screens/{screenId}/convert-to-multifile` | 単一ファイル画面をマルチファイルへ変換（不可逆） |
+| GET | `/api/v1/screens/{screenId}/files` | ファイル一覧を取得 |
+| GET | `/api/v1/screens/{screenId}/files/{filePath}` | ファイルを取得 |
+| PUT | `/api/v1/screens/{screenId}/files/{filePath}` | ファイルを作成 / 更新 |
+| DELETE | `/api/v1/screens/{screenId}/files/{filePath}` | ファイルを削除 |
+| POST | `/api/v1/screens/{screenId}/files/rename` | ファイルをリネーム / 移動 |
 
 ### 検索
 
