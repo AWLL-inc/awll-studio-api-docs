@@ -18,6 +18,10 @@
 | GET | `/api/v1/forms/{formId}/answer-summaries` | REFERENCE用サマリー取得 | FORM_ANSWER:READ |
 | PATCH | `/api/v1/forms/{formId}/public-settings` | 公開フォーム設定更新 | FORM_DEFINITION:WRITE |
 | GET | `/api/v1/forms/{formId}/public-settings` | 公開フォーム設定取得 | FORM_DEFINITION:READ |
+| GET | `/api/v1/forms/folders` | フォルダ一覧取得 | FORM_DEFINITION:READ |
+| PUT | `/api/v1/forms/{formId}/move` | データベースをフォルダへ移動 | FORM_DEFINITION:WRITE |
+| PUT | `/api/v1/forms/folders/rename` | フォルダの移動・名前変更 | FORM_DEFINITION:WRITE |
+| DELETE | `/api/v1/forms/folders` | フォルダ削除（配下はルートへ退避） | FORM_DEFINITION:WRITE |
 | ~~POST~~ | ~~`/api/v1/forms/{formId}/publish`~~ | **廃止（410 Gone）** | - |
 
 > **注意**: `POST /api/v1/forms/{formId}/publish` は廃止されました（410 Gone）。更新APIが常にPUBLISHED状態で保存するため不要です。
@@ -35,6 +39,8 @@
 | `limit` | integer | 20 | 取得件数（最大1000） |
 | `nextToken` | string | - | ページネーショントークン |
 | `state` | string | - | フィルタ: `DRAFT` / `PUBLISHED` |
+| `folder` | string | - | フォルダパスで絞り込み（配下も含む。例: `/顧客管理`） |
+| `search` | string | - | データベース名の部分一致検索（フォルダ横断） |
 
 ### レスポンス (200)
 
@@ -48,6 +54,7 @@
       "state": "PUBLISHED",
       "title": "顧客マスタ",
       "schema": { ... },
+      "folderPath": "/顧客管理",
       "createdAt": "2026-03-16T09:00:00Z",
       "updatedAt": "2026-03-16T10:30:00Z",
       "createdBy": "user-uuid",
@@ -58,6 +65,8 @@
   "count": 20
 }
 ```
+
+> **フォルダ**: `folderPath` はデータベースの所属フォルダ（`/` 区切りの多階層パス）。未設定はルート `/`。
 
 ---
 
@@ -199,6 +208,81 @@ REFERENCE フィールド用のレコードサマリーを取得します。
   "expiresAt": "2026-12-31T23:59:59Z",
   "confirmationMessage": "ご回答ありがとうございました"
 }
+```
+
+---
+
+## フォルダ管理
+
+データベースを `/` 区切りの多階層フォルダで整理できます。フォルダは各データベースの `folderPath` から動的に導出され、空フォルダは保持しません（データベースを移動した時点でフォルダが生まれます）。未設定のデータベースはルート `/` に属します。
+
+### GET /api/v1/forms/folders
+
+テナント内のフォルダ一覧を取得します。中間フォルダも含めて返します。
+
+#### レスポンス (200)
+
+```json
+["/", "/顧客管理", "/顧客管理/2026", "/営業"]
+```
+
+### PUT /api/v1/forms/{formId}/move
+
+データベースを指定フォルダへ移動します。
+
+#### リクエスト
+
+```json
+{ "folderPath": "/顧客管理/2026" }
+```
+
+| フィールド | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| folderPath | string | Yes | 移動先フォルダパス。最大255文字、`..` 禁止。ルートは `/` |
+
+#### レスポンス (200)
+
+移動後の `folderPath` を反映した `FormDefinitionDTO` を返却。
+
+### PUT /api/v1/forms/folders/rename
+
+フォルダのパスを変更します。名前変更（末尾セグメント）と場所の変更（親フォルダ）の両方に対応し、配下のデータベースの `folderPath` も前方一致で一括更新されます。
+
+#### リクエスト
+
+```json
+{ "fromPath": "/顧客管理", "toPath": "/取引先管理" }
+```
+
+| フィールド | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| fromPath | string | Yes | 変更元フォルダパス。ルート `/` は不可 |
+| toPath | string | Yes | 変更先フォルダパス。`fromPath` 自身や配下への移動は不可（循環防止） |
+
+#### レスポンス (200)
+
+```json
+{ "affectedCount": 3 }
+```
+
+### DELETE /api/v1/forms/folders
+
+フォルダを削除します。配下のデータベースはルート `/` へ退避されます（データベース自体は削除されません）。
+
+#### リクエスト
+
+```json
+{ "path": "/顧客管理" }
+```
+
+| フィールド | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| path | string | Yes | 削除対象フォルダパス。ルート `/` は不可 |
+
+#### レスポンス (200)
+
+```json
+{ "affectedCount": 3 }
 ```
 
 ---
