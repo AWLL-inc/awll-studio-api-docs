@@ -23,6 +23,8 @@
 | POST | `/api/v1/screens/{screenId}/compile` | 画面コンパイル | WRITE |
 | GET | `/api/v1/screens/folders` | フォルダ一覧取得 | READ |
 | POST | `/api/v1/screens/{screenId}/move` | 画面フォルダ移動 | WRITE |
+| PUT | `/api/v1/screens/folders/rename` | フォルダの移動・名前変更 | WRITE |
+| DELETE | `/api/v1/screens/folders` | フォルダ削除（配下はルートへ退避） | WRITE |
 
 
 ---
@@ -353,6 +355,51 @@
 ### レスポンス (200)
 
 更新された `ScreenDTO` が返却されます。
+
+---
+
+## PUT /api/v1/screens/folders/rename
+
+フォルダのパスを変更します。名前変更（末尾セグメント）と場所の変更（親フォルダ）の両方に対応し、配下の画面の `folderPath` も前方一致で一括更新されます。
+
+### リクエスト
+
+```json
+{ "fromPath": "/顧客管理", "toPath": "/取引先管理" }
+```
+
+| フィールド | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| fromPath | string | Yes | 変更元フォルダパス。ルート `/` は不可 |
+| toPath | string | Yes | 変更先フォルダパス。`fromPath` 自身や配下への移動は不可（循環防止） |
+
+### レスポンス (200)
+
+```json
+{ "affectedCount": 3 }
+```
+
+---
+
+## DELETE /api/v1/screens/folders
+
+フォルダを削除します。配下の画面はルート `/` へ退避されます（画面自体は削除されません）。
+
+### リクエスト
+
+```json
+{ "path": "/顧客管理" }
+```
+
+| フィールド | 型 | 必須 | 説明 |
+|-----------|-----|------|------|
+| path | string | Yes | 削除対象フォルダパス。ルート `/` は不可 |
+
+### レスポンス (200)
+
+```json
+{ "affectedCount": 3 }
+```
 
 ---
 
